@@ -1,27 +1,16 @@
 QB = {}
 
 QB.Spawns = {
-    legion = {
-        coords = vector4(195.17, -933.77, 29.7, 144.5),
-        location = 'legion',
-        label = 'Legion Square',
+    Airport = {
+        coords = vector4(7544.55, -2819.41, 6.08, 84.02),
+        location = 'Airport',
+        label = 'Airport',
     },
 
-    policedp = {
-        coords = vector4(428.23, -984.28, 29.76, 3.5),
-        location = 'policedp',
-        label = 'Police Department',
+    TimesSquare = {
+        coords = vector4(4971.55, -3047.18, 14.77, 261.62),
+        location = 'TimesSquare',
+        label = 'Times Square',
     },
 
-    paleto = {
-        coords = vector4(80.35, 6424.12, 31.67, 45.5),
-        location = 'paleto',
-        label = 'Paleto Bay',
-    },
-
-    motel = {
-        coords = vector4(327.56, -205.08, 53.08, 163.5),
-        location = 'motel',
-        label = 'Motels',
-    },
 }
