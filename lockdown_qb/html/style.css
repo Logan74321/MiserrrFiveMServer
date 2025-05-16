@@ -1,0 +1,726 @@
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@300;400;700&display=swap');
+
+@font-face { 
+	font-family: 'LEMON';
+	src: url('fonts/LEMONMILK-Medium.otf'); 
+}
+
+*{
+    overflow: hidden;
+    margin: 0;
+    user-select: none;
+}
+
+body {
+    /* Dark overlay for better UI contrast */
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* HUD Elements */
+#hud{
+    right: 0;
+    text-align: right;
+    float: right;
+    margin-top: 8%;
+    height: auto;
+    width: auto;
+    display: flex;
+    flex-direction: column;
+    background-color: rgba(15, 15, 15, 0.75);
+    border-left: 2px solid rgb(250, 250, 250);
+    padding: 10px;
+    border-top-left-radius: 5px;
+    border-bottom-left-radius: 5px;
+}
+
+#energy {
+    width: 20%;
+    height: 8%;
+    align-items: center;
+    border-radius: 10px;
+    position: absolute;
+    top: 90%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Roboto Condensed', sans-serif;
+    color: rgba(245, 245, 245, 0.9);
+    text-align: center;
+    background-color: rgba(15, 15, 15, 0.6);
+    padding: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+}
+
+#extraction {
+    width: 20%;
+    height: 8%;
+    align-items: center;
+    border-radius: 10px;
+    position: absolute;
+    top: 80%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Roboto Condensed', sans-serif;
+    color: rgba(245, 245, 245, 0.9);
+    text-align: center;
+    background-color: rgba(15, 15, 15, 0.8);
+    padding: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+    display: none;
+}
+
+#myProgress {
+    width: 100%;
+    background-color: rgba(35, 35, 35, 0.7);
+    align-items: center;
+    border-radius: 10px;
+    box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
+    height: 10px;
+    margin-top: 5px;
+}
+  
+#myBar {
+    width: 0%;
+    height: 10px;
+    background: linear-gradient(83deg, rgba(0, 128, 255, 0.8) 39%, rgba(0, 200, 255, 0.8) 86%);
+    border-radius: 10px;
+    transition: width 0.3s ease-in-out;
+}
+
+#extractionProgress {
+    width: 100%;
+    background-color: rgba(35, 35, 35, 0.7);
+    align-items: center;
+    border-radius: 10px;
+    box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
+    height: 10px;
+    margin-top: 5px;
+}
+  
+#extractionBar {
+    width: 0%;
+    height: 10px;
+    background: linear-gradient(83deg, rgba(255, 180, 0, 0.8) 39%, rgba(255, 120, 0, 0.8) 86%);
+    border-radius: 10px;
+    transition: width 0.3s ease-in-out;
+}
+
+#container{
+    position: absolute;
+    top: 80%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 79%;
+    text-align: center;
+}
+
+#text{
+    font-family: 'Roboto Condensed', sans-serif;
+    font-size: 8rem;
+    font-weight: bold;
+    color: rgba(255, 255, 255, 0.8);
+    text-align: center;
+    text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.7);
+}
+
+.hudthing{
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: rgba(235, 235, 235, 0.95);
+    text-align: right;
+    margin-left: 2.8%;
+    font-family: 'Roboto Condensed', sans-serif;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+    margin-bottom: 5px;
+}
+
+/* Lobby Screen */
+#lobbyscreen{
+    width: 100vw;
+    height: 100vh;
+    font-family: 'Roboto Condensed', sans-serif;
+    background-color: rgba(0, 0, 0, 0.7);
+    box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
+}
+
+#topthings{
+    display: flex;
+}
+
+#topbar{
+    height: 80px;
+    width: 100%;
+    font-family: 'Roboto Condensed', sans-serif;
+    background-color: rgba(20, 20, 20, 0.8);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+}
+
+.logotext{
+    font-family: 'Roboto Condensed', sans-serif;
+    font-size: 3rem;
+    color: rgba(255, 255, 255, 0.9);
+    float: left;
+    margin-left: 2%;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.topbarbuttons{
+    background-color: transparent;
+    border: none;
+    font-family: 'Roboto Condensed', sans-serif;
+    color: rgba(245, 245, 245, 0.8);
+    font-size: 1.5rem;
+    margin-left: 25px;
+    padding: 8px 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+#play{
+    margin-left: 50px;
+}
+
+.topbarbuttons:hover{
+    color: #ff5e00;
+    transform: translateY(-2px);
+    text-shadow: 0 0 8px rgba(255, 94, 0, 0.5);
+}
+
+#winstop {
+    margin-left: auto;
+    margin-right: 30px;
+    background-color: rgba(51, 51, 51, 0.5);
+    border-radius: 4px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Game Selector */
+#gameselector{
+    margin-top: 50px;
+    width: 80%;
+    max-width: 1200px;
+    height: auto;
+    font-family: 'Roboto Condensed', sans-serif;
+    margin: 50px auto;
+    background-color: rgba(30, 30, 30, 0.8);
+    border-radius: 10px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.gameMode {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.gameMode h2 {
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 20px;
+    font-size: 2.2rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.joinButton {
+    background: linear-gradient(to right, #ff5e00, #ff8c00);
+    border: none;
+    color: white;
+    padding: 12px 30px;
+    margin: 10px;
+    border-radius: 5px;
+    font-size: 1.5rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+.joinButton:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 7px 10px rgba(0, 0, 0, 0.3);
+}
+
+.zoneInfo {
+    width: 100%;
+    margin-bottom: 30px;
+}
+
+.zoneInfo h3 {
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 15px;
+    font-size: 1.8rem;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.zoneItem {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background-color: rgba(50, 50, 50, 0.6);
+    margin-bottom: 10px;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+    border-left: 3px solid #ff5e00;
+}
+
+.zoneItem:hover {
+    background-color: rgba(70, 70, 70, 0.7);
+    transform: translateX(5px);
+}
+
+.zoneName {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1.3rem;
+    font-weight: 500;
+}
+
+.zoneDifficulty {
+    color: #ffcc00;
+    font-size: 1.2rem;
+}
+
+#leave {
+    width: 200px;
+    background-color: #d9534f;
+    border: none;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 5px;
+    font-size: 1.3rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin: 20px auto 0;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+#leave:hover {
+    background-color: #c9302c;
+}
+
+/* Career Stats */
+#careerdiv{
+    width: 80%;
+    max-width: 1200px;
+    height: auto;
+    margin: 50px auto;
+    padding: 30px;
+    font-family: 'Roboto Condensed', sans-serif;
+    background-color: rgba(30, 30, 30, 0.8);
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+#top, #mid, #bottom {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 30px;
+}
+
+#mplayed, #winsc, #killsc, #deathsc, #valuec, #contractsc {
+    flex: 1;
+    text-align: center;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1.8rem;
+    background-color: rgba(50, 50, 50, 0.6);
+    padding: 20px;
+    margin: 0 10px;
+    border-radius: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border-bottom: 3px solid #ff5e00;
+}
+
+#mplayedct, #tierct, #killst, #deathsct, #valuect, #contractsct {
+    font-size: 2.5rem;
+    margin-top: 15px;
+    font-weight: bold;
+    color: #ff8c00;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+/* Gang System */
+#gangdiv {
+    width: 80%;
+    max-width: 1200px;
+    height: auto;
+    margin: 50px auto;
+    padding: 30px;
+    font-family: 'Roboto Condensed', sans-serif;
+    background-color: rgba(30, 30, 30, 0.8);
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+#gangheader {
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+#gangtitle {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 2.5rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+#gangcontent {
+    margin-bottom: 30px;
+    padding: 20px;
+    background-color: rgba(50, 50, 50, 0.6);
+    border-radius: 8px;
+    min-height: 200px;
+}
+
+.gangInfo {
+    margin-bottom: 20px;
+}
+
+.gangName {
+    font-size: 2rem;
+    color: #ff8c00;
+    margin-bottom: 10px;
+    font-weight: bold;
+}
+
+.gangMembers {
+    margin-top: 20px;
+}
+
+.gangMember {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 15px;
+    background-color: rgba(70, 70, 70, 0.6);
+    margin-bottom: 5px;
+    border-radius: 5px;
+    border-left: 3px solid #ff5e00;
+}
+
+.memberName {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1.2rem;
+}
+
+.memberRank {
+    color: #ffcc00;
+    font-size: 1.1rem;
+}
+
+#gangactions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    margin-bottom: 30px;
+}
+
+.gangInput {
+    padding: 10px 15px;
+    margin: 0 10px 10px 0;
+    border-radius: 5px;
+    border: none;
+    font-size: 1.1rem;
+    background-color: rgba(60, 60, 60, 0.8);
+    color: white;
+    font-family: 'Roboto Condensed', sans-serif;
+}
+
+.gangButton {
+    background: linear-gradient(to right, #ff5e00, #ff8c00);
+    border: none;
+    color: white;
+    padding: 10px 20px;
+    margin: 0 10px 10px 0;
+    border-radius: 5px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.gangButton:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+#gangList {
+    margin-top: 30px;
+}
+
+#gangList h3 {
+    color: rgba(255, 255, 255, 0.9);
+    margin-bottom: 15px;
+    font-size: 1.8rem;
+    text-align: center;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.gangListItem {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    background-color: rgba(50, 50, 50, 0.6);
+    margin-bottom: 10px;
+    border-radius: 5px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.gangListItem:hover {
+    background-color: rgba(70, 70, 70, 0.7);
+    transform: translateX(5px);
+}
+
+.gangListName {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1.3rem;
+    font-weight: 500;
+}
+
+.gangListJoin {
+    padding: 8px 15px;
+    background: linear-gradient(to right, #ff5e00, #ff8c00);
+    border: none;
+    color: white;
+    border-radius: 5px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.gangListJoin:hover {
+    transform: scale(1.05);
+}
+
+/* Contracts */
+#contractsdiv {
+    width: 80%;
+    max-width: 1200px;
+    height: auto;
+    margin: 50px auto;
+    padding: 30px;
+    font-family: 'Roboto Condensed', sans-serif;
+    background-color: rgba(30, 30, 30, 0.8);
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+#contractsheader {
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+#contractsheader h2 {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 2.5rem;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.contractItem {
+    background-color: rgba(50, 50, 50, 0.6);
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 20px;
+    border-left: 4px solid #ff8c00;
+    transition: all 0.3s ease;
+}
+
+.contractItem:hover {
+    background-color: rgba(60, 60, 60, 0.7);
+    transform: translateX(5px);
+}
+
+.contractHeader {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.contractName {
+    font-size: 1.8rem;
+    color: #ff8c00;
+    font-weight: bold;
+}
+
+.contractReward {
+    color: #4caf50;
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+.contractDescription {
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1.2rem;
+    margin-bottom: 20px;
+    line-height: 1.4;
+}
+
+.contractAccept {
+    padding: 10px 20px;
+    background: linear-gradient(to right, #ff5e00, #ff8c00);
+    border: none;
+    color: white;
+    border-radius: 5px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    float: right;
+}
+
+.contractAccept:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Leaderboard */
+#leaderboarddiv{
+    width: 80%;
+    max-width: 1200px;
+    height: auto;
+    margin: 50px auto;
+    padding: 30px;
+    font-family: 'Roboto Condensed', sans-serif;
+    background-color: rgba(30, 30, 30, 0.8);
+    border-radius: 10px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+#leaderboard{
+    width: 100%;
+    font-family: 'Roboto Condensed', sans-serif;
+    display: flex;
+    border-radius: 8px;
+    overflow: hidden;
+    background-color: rgba(50, 50, 50, 0.6);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+#toptextleaderboard{
+    font-size: 1.6rem;
+    color: #ff8c00;
+    text-align: center;
+    padding: 15px 0;
+    background-color: rgba(40, 40, 40, 0.8);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+#topnumber, #name, #extractions, #value {
+    flex: 1;
+    border-right: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#topnumberid, #namep, #extractionsp, #valuep {
+    padding: 15px;
+}
+
+.leaderboardItem {
+    padding: 12px 8px;
+    color: rgba(255, 255, 255, 0.9);
+    font-size: 1.2rem;
+    text-align: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    transition: all 0.3s ease;
+}
+
+.leaderboardItem:hover {
+    background-color: rgba(70, 70, 70, 0.7);
+}
+
+.leaderboardRank {
+    color: #ff8c00;
+    font-weight: bold;
+}
+
+.scrollable {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.scrollable::-webkit-scrollbar {
+    width: 8px;
+}
+
+.scrollable::-webkit-scrollbar-track {
+    background: rgba(30, 30, 30, 0.5);
+}
+
+.scrollable::-webkit-scrollbar-thumb {
+    background: #ff8c00;
+    border-radius: 4px;
+}
+
+/* Responsive Design */
+@media screen and (max-width: 768px) {
+    #topbar {
+        flex-direction: column;
+        height: auto;
+        padding: 15px 0;
+    }
+    
+    .logotext {
+        font-size: 2.5rem;
+        margin: 0 0 15px 0;
+    }
+    
+    .topbarbuttons {
+        margin: 5px 0;
+        font-size: 1.2rem;
+    }
+    
+    #winstop {
+        margin: 10px 0 0 0;
+    }
+    
+    #gameselector, #careerdiv, #gangdiv, #contractsdiv, #leaderboarddiv {
+        width: 95%;
+        padding: 15px;
+    }
+    
+    #top, #mid, #bottom {
+        flex-direction: column;
+    }
+    
+    #mplayed, #winsc, #killsc, #deathsc, #valuec, #contractsc {
+        margin: 0 0 15px 0;
+    }
+    
+    #leaderboard {
+        flex-direction: column;
+    }
+    
+    #topnumber, #name, #extractions, #value {
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+}

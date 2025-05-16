@@ -1,0 +1,986 @@
+local QBCore = exports['qb-core']:GetCoreObject()
+
+-- Local variables
+local PlayersInZone = {}
+local MinPlayers = Config.MinPlayers
+local MaxPlayers = Config.MaxPlayers
+local LockdownInProgress = false
+local ActiveZones = {}
+local ActiveVehicles = {}
+local ActiveContracts = {}
+
+-- Initialize database (following QBCore style)
+CreateThread(function()
+    print("^2Lockdown Protocol: Initializing database...^7")
+    
+    -- Check if lockdown_contracts table exists
+    MySQL.query('SHOW TABLES LIKE "lockdown_contracts"', function(result)
+        if result[1] then
+            print("^2Lockdown Protocol: lockdown_contracts table exists^7")
+            
+            -- Check if we need to insert default contracts
+            MySQL.query('SELECT COUNT(*) as count FROM lockdown_contracts', function(count)
+                if count[1].count == 0 then
+                    print("^3Lockdown Protocol: Inserting default contracts...^7")
+                    
+                    -- Insert default contracts
+                    for _, contract in pairs(Config.Contracts) do
+                        MySQL.insert('INSERT INTO lockdown_contracts (name, description, reward_xp, reward_cash, min_tier) VALUES (?, ?, ?, ?, ?)', 
+                        {
+                            contract.name,
+                            contract.description,
+                            contract.reward_xp,
+                            contract.reward_cash,
+                            contract.min_tier
+                        })
+                    end
+                end
+            end)
+        else
+            print("^1Lockdown Protocol: lockdown_contracts table missing! Please run the SQL file.^7")
+            print("^3Attempting to create lockdown_contracts table...^7")
+            
+            MySQL.query([[
+                CREATE TABLE IF NOT EXISTS `lockdown_contracts` (
+                    `id` int(11) NOT NULL AUTO_INCREMENT,
+                    `name` varchar(100) DEFAULT NULL,
+                    `description` text DEFAULT NULL,
+                    `reward_xp` int(11) DEFAULT 0,
+                    `reward_cash` int(11) DEFAULT 0,
+                    `min_tier` int(11) DEFAULT 1,
+                    `is_active` tinyint(1) DEFAULT 1,
+                    PRIMARY KEY (`id`)
+                ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+            ]], function()
+                print("^2Lockdown Protocol: Created lockdown_contracts table^7")
+                
+                -- Insert default contracts
+                for _, contract in pairs(Config.Contracts) do
+                    MySQL.insert('INSERT INTO lockdown_contracts (name, description, reward_xp, reward_cash, min_tier) VALUES (?, ?, ?, ?, ?)', 
+                    {
+                        contract.name,
+                        contract.description,
+                        contract.reward_xp,
+                        contract.reward_cash,
+                        contract.min_tier
+                    })
+                end
+            end)
+        end
+    end)
+    
+    -- Check other tables using the same pattern
+    local tables = {
+        "lockdown_stats",
+        "lockdown_gangs",
+        "lockdown_gang_members"
+    }
+    
+    for _, table in ipairs(tables) do
+        MySQL.query('SHOW TABLES LIKE "' .. table .. '"', function(result)
+            if result[1] then
+                print("^2Lockdown Protocol: " .. table .. " table exists^7")
+            else
+                print("^1Lockdown Protocol: " .. table .. " table missing! Please run the SQL file.^7")
+            end
+        end)
+    end
+local QBCore = exports['qb-core']:GetCoreObject()
+
+-- Local variables
+local PlayersInZone = {}
+local MinPlayers = Config.MinPlayers
+local MaxPlayers = Config.MaxPlayers
+local LockdownInProgress = false
+local ActiveZones = {}
+local ActiveVehicles = {}
+local ActiveContracts = {}
+
+-- Initialize database tables if needed
+Citizen.CreateThread(function()
+    -- Create tables if they don't exist
+    local tables = {
+        "lockdown_stats",
+        "lockdown_gangs",
+        "lockdown_gang_members",
+        "lockdown_contracts",
+        "pubg_stats"
+    }
+    
+    for _, table in ipairs(tables) do
+        MySQL.Async.execute('SHOW TABLES LIKE ?', {table}, function(result)
+            if type(result) ~= "table" or #result == 0 then
+                print("^1WARNING: Table '" .. table .. "' not found. Please run the SQL script to create the database tables.^7")
+            end
+        end)
+    end
+    
+    -- Create lockdown_contracts table if it doesn't exist
+    MySQL.Async.execute([[
+        CREATE TABLE IF NOT EXISTS lockdown_contracts (
+            id int(11) NOT NULL AUTO_INCREMENT,
+            name varchar(100) DEFAULT NULL,
+            description text DEFAULT NULL,
+            reward_xp int(11) DEFAULT 0,
+            reward_cash int(11) DEFAULT 0,
+            min_tier int(11) DEFAULT 1,
+            is_active tinyint(1) DEFAULT 1,
+            PRIMARY KEY (id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    ]], {}, function(rowsChanged)
+        if rowsChanged > 0 then
+            print("^2Created lockdown_contracts table^7")
+        end
+        
+        -- Insert default contracts if none exist
+        MySQL.Async.fetchScalar('SELECT COUNT(*) FROM lockdown_contracts', {}, function(count)
+            if count == 0 then
+                for _, contract in pairs(Config.Contracts) do
+                    MySQL.Async.execute('INSERT INTO lockdown_contracts (name, description, reward_xp, reward_cash, min_tier) VALUES (?, ?, ?, ?, ?)', 
+                    {
+                        contract.name,
+                        contract.description,
+                        contract.reward_xp,
+                        contract.reward_cash,
+                        contract.min_tier
+                    })
+                end
+                print("^2Lockdown Protocol: Default contracts inserted into database^7")
+            end
+        end)
+    end)
+end)
+
+-- Callback for getting player stats
+QBCore.Functions.CreateCallback('lockdown:getPlayerStats', function(source, cb)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return cb(nil) end
+    
+    local identifier = Player.PlayerData.citizenid
+    
+    MySQL.Async.fetchAll('SELECT * FROM lockdown_stats WHERE identifier = ?', {identifier}, function(results)
+        if results and results[1] then
+            -- Get criminal tier info
+            local tier = GetCriminalTier(results[1].extractions)
+            results[1].tier_name = tier.name
+            results[1].tier_color = tier.color
+            cb(results[1])
+        else
+            -- Create new entry for player
+            MySQL.Async.execute('INSERT INTO lockdown_stats (identifier, name, extractions, deaths, kills, contracts_completed, extracted_value, highest_solo_streak, criminal_tier) VALUES (?, ?, 0, 0, 0, 0, 0, 0, 1)', 
+            {
+                identifier,
+                Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname
+            })
+            
+            -- Return default stats
+            cb({
+                extractions = 0,
+                deaths = 0,
+                kills = 0,
+                contracts_completed = 0,
+                extracted_value = 0,
+                highest_solo_streak = 0,
+                criminal_tier = 1,
+                tier_name = Config.CriminalTiers[1].name,
+                tier_color = Config.CriminalTiers[1].color
+            })
+        end
+    end)
+end)
+
+-- Get criminal tier based on extractions
+function GetCriminalTier(extractions)
+    local highestTier = Config.CriminalTiers[1]
+    
+    for _, tier in pairs(Config.CriminalTiers) do
+        if extractions >= tier.requiredExtractions and tier.id > highestTier.id then
+            highestTier = tier
+        end
+    end
+    
+    return highestTier
+end
+
+-- Gang system callbacks
+QBCore.Functions.CreateCallback('lockdown:getGangData', function(source, cb)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return cb(nil) end
+    
+    local identifier = Player.PlayerData.citizenid
+    
+    -- Check if player is in a gang
+    MySQL.Async.fetchAll('SELECT g.*, gm.rank FROM lockdown_gangs g INNER JOIN lockdown_gang_members gm ON g.id = gm.gang_id WHERE gm.identifier = ?', {identifier}, function(results)
+        if results and results[1] then
+            -- Get gang members
+            MySQL.Async.fetchAll('SELECT name, rank FROM lockdown_gang_members WHERE gang_id = ?', {results[1].id}, function(members)
+                results[1].members = members
+                cb(results[1])
+            end)
+        else
+            -- Get all gangs for display
+            MySQL.Async.fetchAll('SELECT id, name, color FROM lockdown_gangs', {}, function(gangs)
+                cb({
+                    in_gang = false,
+                    gangs = gangs
+                })
+            end)
+        end
+    end)
+end)
+
+QBCore.Functions.CreateCallback('lockdown:createGang', function(source, cb, gangName, gangColor, gangEmblem)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return cb(false, "Player not found") end
+    
+    local identifier = Player.PlayerData.citizenid
+    local playerName = Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname
+    
+    -- Check if player is already in a gang
+    MySQL.query('SELECT * FROM lockdown_gang_members WHERE identifier = ?', {identifier}, function(results)
+        if results and results[1] then
+            return cb(false, "You are already in a gang")
+        end
+        
+        -- Check if gang name already exists
+        MySQL.query('SELECT * FROM lockdown_gangs WHERE name = ?', {gangName}, function(results)
+            if results and results[1] then
+                return cb(false, "Gang name already taken")
+            end
+            
+            -- Create new gang
+            MySQL.insert('INSERT INTO lockdown_gangs (name, color, emblem, created_by) VALUES (?, ?, ?, ?)', 
+            {
+                gangName,
+                gangColor,
+                gangEmblem,
+                identifier
+            }, function(gangId)
+                if gangId > 0 then
+                    -- Add creator as OG (rank 3)
+                    MySQL.insert('INSERT INTO lockdown_gang_members (gang_id, identifier, name, rank) VALUES (?, ?, ?, 3)', 
+                    {
+                        gangId,
+                        identifier,
+                        playerName
+                    })
+                    
+                    cb(true, "Gang created successfully")
+                else
+                    cb(false, "Failed to create gang")
+                end
+            end)
+        end)
+    end)
+end)
+
+QBCore.Functions.CreateCallback('lockdown:joinGang', function(source, cb, gangId)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return cb(false, "Player not found") end
+    
+    local identifier = Player.PlayerData.citizenid
+    local playerName = Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname
+    
+    -- Check if player is already in a gang
+    MySQL.query('SELECT * FROM lockdown_gang_members WHERE identifier = ?', {identifier}, function(results)
+        if results and results[1] then
+            return cb(false, "You are already in a gang")
+        end
+        
+        -- Check if gang exists
+        MySQL.query('SELECT * FROM lockdown_gangs WHERE id = ?', {gangId}, function(results)
+            if not results or not results[1] then
+                return cb(false, "Gang not found")
+            end
+            
+            -- Check if gang is full
+            MySQL.query('SELECT COUNT(*) as count FROM lockdown_gang_members WHERE gang_id = ?', {gangId}, function(results)
+                if results[1].count >= Config.GangSystem.MaxMembers then
+                    return cb(false, "Gang is full")
+                end
+                
+                -- Add player to gang as Prospect (rank 1)
+                MySQL.insert('INSERT INTO lockdown_gang_members (gang_id, identifier, name, rank) VALUES (?, ?, ?, 1)', 
+                {
+                    gangId,
+                    identifier,
+                    playerName
+                })
+                
+                cb(true, "You have joined the gang")
+            end)
+        end)
+    end)
+end)
+
+-- Leaderboard callback
+QBCore.Functions.CreateCallback('lockdown:getLeaderboard', function(source, cb)
+    MySQL.query('SELECT name, extractions, kills, extracted_value FROM lockdown_stats ORDER BY extracted_value DESC LIMIT 10', {}, function(results)
+        cb(results)
+    end)
+end)
+
+-- Contract system callbacks
+QBCore.Functions.CreateCallback('lockdown:getAvailableContracts', function(source, cb)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return cb({}) end
+    
+    local identifier = Player.PlayerData.citizenid
+    
+    -- Get player's tier
+    MySQL.query('SELECT criminal_tier FROM lockdown_stats WHERE identifier = ?', {identifier}, function(results)
+        local tier = 1
+        if results and results[1] then
+            tier = results[1].criminal_tier
+        end
+        
+        -- Get contracts available for player's tier
+        MySQL.query('SELECT * FROM lockdown_contracts WHERE min_tier <= ? AND is_active = 1', {tier}, function(contracts)
+            cb(contracts)
+        end)
+    end)
+end)
+
+QBCore.Functions.CreateCallback('lockdown:acceptContract', function(source, cb, contractId)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return cb(false, nil) end
+    
+    -- Check if contract exists
+    MySQL.query('SELECT * FROM lockdown_contracts WHERE id = ? AND is_active = 1', {contractId}, function(results)
+        if not results or not results[1] then
+            return cb(false, nil)
+        end
+        
+        -- Store active contract for player
+        ActiveContracts[source] = results[1]
+        
+        cb(true, results[1])
+    end)
+end)
+
+-- Check if player has a specific item
+QBCore.Functions.CreateCallback('lockdown:hasItem', function(source, cb, itemName)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return cb(false) end
+    
+    local hasItem = Player.Functions.HasItem(itemName)
+    cb(hasItem)
+end)
+
+-- Join Lockdown request
+RegisterNetEvent('lockdown:joinRequest')
+AddEventHandler('lockdown:joinRequest', function(joinType, gangId)
+    local source = source
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return end
+    
+    -- Check if there's an active zone with space
+    local availableZone = nil
+    local playerCount = 0
+    
+    for zoneId, zone in pairs(ActiveZones) do
+        if #zone.players < MaxPlayers then
+            availableZone = zone
+            playerCount = #zone.players
+            break
+        end
+    end
+    
+    -- If no available zone, create a new one
+    if not availableZone and not LockdownInProgress then
+        -- Select a random zone from config
+        local zoneIndex = math.random(1, #Config.Zones)
+        local zoneData = Config.Zones[zoneIndex]
+        
+        -- Create new zone
+        local newZoneId = os.time()
+        ActiveZones[newZoneId] = {
+            id = newZoneId,
+            data = zoneData,
+            players = {},
+            startTime = os.time()
+        }
+        
+        availableZone = ActiveZones[newZoneId]
+        playerCount = 0
+    end
+    
+    -- If joining with gang, check gang members
+    local gangMembers = {}
+    if joinType == "gang" and gangId then
+        -- Check if player is in specified gang
+        MySQL.Async.fetchAll('SELECT * FROM lockdown_gang_members WHERE gang_id = ? AND identifier = ?', {gangId, Player.PlayerData.citizenid}, function(results)
+            if not results or not results[1] then
+                TriggerClientEvent('lockdown:joinResponse', source, 'not_in_gang')
+                return
+            end
+            
+            -- Get other gang members (up to MaxMembersPerMatch - 1)
+            MySQL.Async.fetchAll('SELECT identifier FROM lockdown_gang_members WHERE gang_id = ? AND identifier != ? LIMIT ?', 
+            {
+                gangId, 
+                Player.PlayerData.citizenid, 
+                Config.GangSystem.MaxMembersPerMatch - 1
+            }, function(members)
+                for _, member in ipairs(members) do
+                    local memberSource = QBCore.Functions.GetPlayerByCitizenId(member.identifier)
+                    if memberSource then
+                        table.insert(gangMembers, memberSource.PlayerData.source)
+                    end
+                end
+                
+                -- Check if there's enough space for all gang members
+                if availableZone and playerCount + 1 + #gangMembers <= MaxPlayers then
+                    -- Add player and gang members to zone
+                    AddPlayerToZone(source, availableZone.id)
+                    
+                    -- Invite gang members
+                    for _, memberSource in ipairs(gangMembers) do
+                        TriggerClientEvent('lockdown:gangInvite', memberSource, Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname, availableZone.id)
+                    end
+                    
+                    TriggerClientEvent('lockdown:joinResponse', source, 'joined', playerCount + 1, MaxPlayers, availableZone.data)
+                else
+                    TriggerClientEvent('lockdown:joinResponse', source, 'zone_full')
+                end
+            end)
+        end)
+    else
+        -- Solo join
+        if availableZone and playerCount < MaxPlayers then
+            -- Add player to zone
+            AddPlayerToZone(source, availableZone.id)
+            
+            TriggerClientEvent('lockdown:joinResponse', source, 'joined', playerCount + 1, MaxPlayers, availableZone.data)
+            
+            -- If minimum players reached, start the zone after a delay
+            if #availableZone.players >= MinPlayers and not LockdownInProgress then
+                LockdownInProgress = true
+                
+                Citizen.SetTimeout(5000, function()
+                    StartLockdown(availableZone.id)
+                end)
+            end
+        else
+            TriggerClientEvent('lockdown:joinResponse', source, 'zone_full')
+        end
+    end
+end)
+
+-- Function to add player to zone
+function AddPlayerToZone(source, zoneId)
+    if not ActiveZones[zoneId] then return end
+    
+    -- Check if player is already in a zone
+    for id, zone in pairs(ActiveZones) do
+        for i, player in ipairs(zone.players) do
+            if player == source then
+                table.remove(zone.players, i)
+                break
+            end
+        end
+    end
+    
+    -- Add player to specified zone
+    table.insert(ActiveZones[zoneId].players, source)
+    PlayersInZone[source] = zoneId
+    
+    -- Update player count for all players in the zone
+    UpdatePlayerCount(zoneId)
+end
+
+-- Function to update player count for all players in a zone
+function UpdatePlayerCount(zoneId)
+    if not ActiveZones[zoneId] then return end
+    
+    local count = #ActiveZones[zoneId].players
+    
+    for _, player in ipairs(ActiveZones[zoneId].players) do
+        TriggerClientEvent('lockdown:playerCount', player, count)
+    end
+end
+
+-- Gang invitation response
+RegisterNetEvent('lockdown:gangInviteResponse')
+AddEventHandler('lockdown:gangInviteResponse', function(accept, zoneId)
+    local source = source
+    
+    if accept and ActiveZones[zoneId] then
+        AddPlayerToZone(source, zoneId)
+        TriggerClientEvent('lockdown:joinResponse', source, 'joined', #ActiveZones[zoneId].players, MaxPlayers, ActiveZones[zoneId].data)
+    end
+end)
+
+-- Function to start Lockdown in a zone
+function StartLockdown(zoneId)
+    if not ActiveZones[zoneId] then return end
+    
+    -- Mark zone as started
+    ActiveZones[zoneId].started = true
+    
+    -- Notify all players
+    for _, player in ipairs(ActiveZones[zoneId].players) do
+        -- Generate a random contract if available
+        local contract = nil
+        
+        if #ActiveContracts > 0 then
+            contract = ActiveContracts[math.random(1, #ActiveContracts)]
+        end
+        
+        -- Start Lockdown for player
+        TriggerClientEvent('lockdown:start', player, ActiveZones[zoneId].data, contract)
+    end
+    
+    -- Spawn vehicles
+    SpawnVehiclesInZone(zoneId)
+    
+    -- Set a timer to end the Lockdown if no one extracts
+    Citizen.SetTimeout(30 * 60000, function() -- 30 minutes
+        EndLockdown(zoneId)
+    end)
+end
+
+-- Function to spawn vehicles in the zone
+function SpawnVehiclesInZone(zoneId)
+    if not ActiveZones[zoneId] then return end
+    
+    for _, spawnPoint in ipairs(Config.VehicleSpawns) do
+        -- Check spawn chance
+        if math.random() <= spawnPoint.spawnChance then
+            -- Choose random vehicle model
+            local modelIndex = math.random(1, #spawnPoint.models)
+            local modelName = spawnPoint.models[modelIndex]
+            
+            -- Create vehicle
+            local vehicle = CreateVehicleServerSetter(GetHashKey(modelName), 'automobile', spawnPoint.coords.x, spawnPoint.coords.y, spawnPoint.coords.z, spawnPoint.heading)
+            
+            -- Set routing bucket
+            SetEntityRoutingBucket(vehicle, Config.RoutingBucket)
+            
+            -- Add to active vehicles
+            table.insert(ActiveVehicles, vehicle)
+        end
+    end
+end
+
+-- Function to end Lockdown in a zone
+function EndLockdown(zoneId)
+    if not ActiveZones[zoneId] then return end
+    
+    -- Notify all remaining players
+    for _, player in ipairs(ActiveZones[zoneId].players) do
+        TriggerClientEvent('lockdown:eliminated', player)
+    end
+    
+    -- Clear zone data
+    ActiveZones[zoneId] = nil
+    
+    -- Reset LockdownInProgress if no active zones
+    if next(ActiveZones) == nil then
+        LockdownInProgress = false
+    end
+    
+    -- Clean up vehicles
+    for _, vehicle in ipairs(ActiveVehicles) do
+        if DoesEntityExist(vehicle) then
+            DeleteEntity(vehicle)
+        end
+    end
+    ActiveVehicles = {}
+end
+
+-- Leave zone event
+RegisterNetEvent('lockdown:leaveZone')
+AddEventHandler('lockdown:leaveZone', function()
+    local source = source
+    local zoneId = PlayersInZone[source]
+    
+    if not zoneId or not ActiveZones[zoneId] then return end
+    
+    -- Clear player inventory if using ox_inventory
+    if Config.CheckInventory then
+        exports.ox_inventory:ClearInventory(source)
+    end
+    
+    -- Remove player from zone
+    for i, player in ipairs(ActiveZones[zoneId].players) do
+        if player == source then
+            table.remove(ActiveZones[zoneId].players, i)
+            break
+        end
+    end
+    
+    -- Update player's death count
+    local Player = QBCore.Functions.GetPlayer(source)
+    if Player then
+        MySQL.Async.execute('UPDATE lockdown_stats SET deaths = deaths + 1 WHERE identifier = ?', {Player.PlayerData.citizenid})
+    end
+    
+    -- Remove from PlayersInZone
+    PlayersInZone[source] = nil
+    
+    -- Reset player routing bucket
+    SetPlayerRoutingBucket(source, 0)
+    
+    -- Check if zone is empty or has only one player left
+    if #ActiveZones[zoneId].players <= 1 and ActiveZones[zoneId].started then
+        -- If one player left, they win
+        if #ActiveZones[zoneId].players == 1 then
+            local winner = ActiveZones[zoneId].players[1]
+            TriggerClientEvent('lockdown:gameEnd', winner)
+            
+            -- Update winner stats
+            local WinnerPlayer = QBCore.Functions.GetPlayer(winner)
+            if WinnerPlayer then
+                -- Award bonus for winning
+                if Config.RewardExtraction then
+                    WinnerPlayer.Functions.AddMoney('cash', Config.ExtractionBonus)
+                end
+                
+                -- Update stats
+                MySQL.Async.execute('UPDATE lockdown_stats SET extractions = extractions + 1 WHERE identifier = ?', {WinnerPlayer.PlayerData.citizenid})
+            end
+            
+            -- Reset player routing bucket
+            SetPlayerRoutingBucket(winner, 0)
+        end
+        
+        -- End the Lockdown
+        EndLockdown(zoneId)
+    else
+        -- Update player count
+        UpdatePlayerCount(zoneId)
+    end
+    
+    -- Notify the player they've been eliminated
+    TriggerClientEvent('lockdown:eliminated', source)
+end)
+
+-- Leave lobby event
+RegisterNetEvent('lockdown:leaveLobby')
+AddEventHandler('lockdown:leaveLobby', function()
+    local source = source
+    local zoneId = PlayersInZone[source]
+    
+    if zoneId and ActiveZones[zoneId] and not ActiveZones[zoneId].started then
+        -- Remove player from zone
+        for i, player in ipairs(ActiveZones[zoneId].players) do
+            if player == source then
+                table.remove(ActiveZones[zoneId].players, i)
+                break
+            end
+        end
+        
+        -- Remove from PlayersInZone
+        PlayersInZone[source] = nil
+        
+        -- Update player count
+        UpdatePlayerCount(zoneId)
+    end
+end)
+
+-- Record match participation
+RegisterNetEvent('lockdown:recordParticipation')
+AddEventHandler('lockdown:recordParticipation', function()
+    local source = source
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return end
+    
+    -- Set player routing bucket
+    SetPlayerRoutingBucket(source, Config.RoutingBucket)
+    SetRoutingBucketPopulationEnabled(Config.RoutingBucket, false)
+    SetRoutingBucketEntityLockdownMode(Config.RoutingBucket, 'inactive')
+end)
+
+-- Player killed event
+RegisterNetEvent('lockdown:playerKilled')
+AddEventHandler('lockdown:playerKilled', function(killerId)
+    local source = source
+    local zoneId = PlayersInZone[source]
+    
+    if not zoneId or not ActiveZones[zoneId] or not killerId then return end
+    
+    -- Increment killer's kill count
+    TriggerClientEvent('lockdown:addKill', killerId)
+    
+    -- Update killer's stats
+    local KillerPlayer = QBCore.Functions.GetPlayer(killerId)
+    if KillerPlayer then
+        MySQL.Async.execute('UPDATE lockdown_stats SET kills = kills + 1 WHERE identifier = ?', {KillerPlayer.PlayerData.citizenid})
+    end
+end)
+
+-- Add loot to player inventory
+RegisterNetEvent('lockdown:addLoot')
+AddEventHandler('lockdown:addLoot', function(lootName, lootData)
+    local source = source
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return end
+    
+    -- Add item to player's inventory
+    local amount = 1
+    
+    if lootData.name == "cash_bag" then
+        -- Generate random cash value
+        local value = math.random(lootData.value.min, lootData.value.max)
+        
+        -- Store as a tracked item with value metadata
+        Player.Functions.AddItem(lootName, amount, false, {value = value})
+        
+    elseif lootData.name == "weapon_cache" then
+        -- Choose random weapon from cache
+        local weaponIndex = math.random(1, #lootData.items)
+        local weaponName = lootData.items[weaponIndex]
+        
+        -- Add weapon
+        Player.Functions.AddItem(weaponName, 1)
+        
+        -- Add ammo if specified
+        if lootData.ammo then
+            local ammoAmount = math.random(lootData.ammo.amount.min, lootData.ammo.amount.max)
+            Player.Functions.AddItem(lootData.ammo.name, ammoAmount)
+        end
+        
+    else
+        -- Standard item
+        Player.Functions.AddItem(lootName, amount)
+    end
+end)
+
+-- Start extraction event
+RegisterNetEvent('lockdown:startExtraction')
+AddEventHandler('lockdown:startExtraction', function(extractionName)
+    local source = source
+    local zoneId = PlayersInZone[source]
+    
+    if not zoneId or not ActiveZones[zoneId] then return end
+    
+    -- Notify other players in the zone
+    for _, player in ipairs(ActiveZones[zoneId].players) do
+        if player ~= source then
+            TriggerClientEvent('lockdown:notification', player, "A player is extracting at " .. extractionName .. "!")
+        end
+    end
+end)
+
+-- Complete extraction event
+RegisterNetEvent('lockdown:completeExtraction')
+AddEventHandler('lockdown:completeExtraction', function(extractionName)
+    local source = source
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return end
+    
+    local zoneId = PlayersInZone[source]
+    if not zoneId or not ActiveZones[zoneId] then return end
+    
+    -- Process player's loot
+    local totalValue = 0
+    
+    -- Get all items from player inventory
+    local items = nil
+    
+    if Config.CheckInventory then
+        items = exports.ox_inventory:GetInventoryItems(source)
+    else
+        items = Player.PlayerData.items
+    end
+    
+    if items then
+        for _, item in pairs(items) do
+            -- Check each loot type
+            for _, lootType in pairs(Config.LootTypes) do
+                if item.name == lootType.name then
+                    local value = 0
+                    
+                    -- Get value based on item type
+                    if lootType.name == "cash_bag" then
+                        if item.metadata and item.metadata.value then
+                            value = item.metadata.value
+                        else
+                            value = math.random(lootType.value.min, lootType.value.max)
+                        end
+                    else
+                        value = math.random(lootType.value.min, lootType.value.max)
+                    end
+                    
+                    totalValue = totalValue + value
+                end
+            end
+        end
+    end
+    
+    -- Add any extraction bonus
+    if Config.RewardExtraction then
+        totalValue = totalValue + Config.ExtractionBonus
+    end
+    
+    -- Check if player completed a contract
+    if ActiveContracts[source] then
+        totalValue = totalValue + ActiveContracts[source].reward_cash
+        
+        -- Update contract completion stats
+        MySQL.Async.execute('UPDATE lockdown_stats SET contracts_completed = contracts_completed + 1 WHERE identifier = ?', {Player.PlayerData.citizenid})
+        
+        -- Notify player
+        TriggerClientEvent('lockdown:contractCompleted', source, ActiveContracts[source].reward_cash)
+        
+        -- Clear active contract
+        ActiveContracts[source] = nil
+    end
+    
+    -- Add dirty money to player
+    Player.Functions.AddMoney('cash', math.floor(totalValue * Config.LaunderingRate))
+    
+    -- Update player stats
+    MySQL.Async.execute('UPDATE lockdown_stats SET extractions = extractions + 1, extracted_value = extracted_value + ? WHERE identifier = ?', 
+    {
+        totalValue,
+        Player.PlayerData.citizenid
+    })
+    
+    -- Check for criminal tier upgrade
+    CheckCriminalTierUpgrade(Player.PlayerData.citizenid)
+    
+    -- Remove player from zone
+    for i, player in ipairs(ActiveZones[zoneId].players) do
+        if player == source then
+            table.remove(ActiveZones[zoneId].players, i)
+            break
+        end
+    end
+    
+    -- Remove from PlayersInZone
+    PlayersInZone[source] = nil
+    
+    -- Reset player routing bucket
+    SetPlayerRoutingBucket(source, 0)
+    
+    -- Clear inventory if using ox_inventory
+    if Config.CheckInventory then
+        exports.ox_inventory:ClearInventory(source)
+    end
+    
+    -- Check if zone should end
+    if #ActiveZones[zoneId].players <= 1 then
+        EndLockdown(zoneId)
+    else
+        -- Update player count
+        UpdatePlayerCount(zoneId)
+    end
+end)
+
+-- Function to check for criminal tier upgrade
+function CheckCriminalTierUpgrade(identifier)
+    -- Get player's current stats
+    MySQL.Async.fetchAll('SELECT extractions, criminal_tier FROM lockdown_stats WHERE identifier = ?', {identifier}, function(results)
+        if not results or not results[1] then return end
+        
+        local extractions = results[1].extractions
+        local currentTier = results[1].criminal_tier
+        
+        -- Check for tier upgrade
+        for _, tier in pairs(Config.CriminalTiers) do
+            if extractions >= tier.requiredExtractions and tier.id > currentTier then
+                -- Upgrade tier
+                MySQL.Async.execute('UPDATE lockdown_stats SET criminal_tier = ? WHERE identifier = ?', {tier.id, identifier})
+                
+                -- Notify player of upgrade
+                local playerSource = QBCore.Functions.GetPlayerByCitizenId(identifier)
+                if playerSource then
+                    TriggerClientEvent('lockdown:notification', playerSource.PlayerData.source, "Criminal tier upgraded to " .. tier.name .. "!")
+                end
+                
+                break
+            end
+        end
+    end)
+end
+
+-- Timer to check if Lockdown zones need to end
+Citizen.CreateThread(function()
+    while true do 
+        Citizen.Wait(60000) -- Check every minute
+        
+        for zoneId, zone in pairs(ActiveZones) do
+            if zone.started and #zone.players <= 1 then
+                -- If one player left, they win
+                if #zone.players == 1 then
+                    local winner = zone.players[1]
+                    TriggerClientEvent('lockdown:gameEnd', winner)
+                    
+                    -- Update winner stats
+                    local WinnerPlayer = QBCore.Functions.GetPlayer(winner)
+                    if WinnerPlayer then
+                        -- Award bonus for winning
+                        if Config.RewardExtraction then
+                            WinnerPlayer.Functions.AddMoney('cash', Config.ExtractionBonus)
+                        end
+                        
+                        -- Update stats
+                        MySQL.Async.execute('UPDATE lockdown_stats SET extractions = extractions + 1 WHERE identifier = ?', {WinnerPlayer.PlayerData.citizenid})
+                    end
+                    
+                    -- Reset player routing bucket
+                    SetPlayerRoutingBucket(winner, 0)
+                end
+                
+                -- End the Lockdown
+                EndLockdown(zoneId)
+            end
+        end
+    end
+end)
+
+-- Player disconnect handler
+AddEventHandler('playerDropped', function(reason)
+    local source = source
+    local zoneId = PlayersInZone[source]
+    
+    if zoneId and ActiveZones[zoneId] then
+        -- Remove player from zone
+        for i, player in ipairs(ActiveZones[zoneId].players) do
+            if player == source then
+                table.remove(ActiveZones[zoneId].players, i)
+                break
+            end
+        end
+        
+        -- Remove from PlayersInZone
+        PlayersInZone[source] = nil
+        
+        -- Clear inventory if using ox_inventory
+        if Config.CheckInventory then
+            exports.ox_inventory:ClearInventory(source)
+        end
+        
+        -- Update player count
+        UpdatePlayerCount(zoneId)
+        
+        -- Check if zone should end
+        if ActiveZones[zoneId].started and #ActiveZones[zoneId].players <= 1 then
+            if #ActiveZones[zoneId].players == 1 then
+                -- Last player wins
+                local winner = ActiveZones[zoneId].players[1]
+                TriggerClientEvent('lockdown:gameEnd', winner)
+                
+                -- Update winner stats
+                local WinnerPlayer = QBCore.Functions.GetPlayer(winner)
+                if WinnerPlayer then
+                    -- Award bonus for winning
+                    if Config.RewardExtraction then
+                        WinnerPlayer.Functions.AddMoney('cash', Config.ExtractionBonus)
+                    end
+                    
+                    -- Update stats
+                    MySQL.Async.execute('UPDATE lockdown_stats SET extractions = extractions + 1 WHERE identifier = ?', {WinnerPlayer.PlayerData.citizenid})
+                end
+                
+                -- Reset player routing bucket
+                SetPlayerRoutingBucket(winner, 0)
+            end
+            
+            -- End the Lockdown
+            EndLockdown(zoneId)
+        end
+    end
+end)

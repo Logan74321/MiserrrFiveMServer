@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+        <link rel="stylesheet" href="style.css" type="text/css">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <script src="nui://game/ui/jquery.js" type="text/javascript"></script>
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+        <script src='https://kit.fontawesome.com/a076d05399.js' crossorigin='anonymous'></script>
+</head>
+<body>
+    <audio id="winningsound">
+        <source src="winning.mp3" type="audio/mpeg">
+    </audio>
+    <audio id="lootsound">
+        <source src="loot.mp3" type="audio/mpeg">
+    </audio>
+    <div id="hud">
+        <p class="hudthing" id="zone"></p>
+        <p class="hudthing" id="kills"></p>
+        <p class="hudthing" id="players"></p>
+    </div>
+    <div id="container">
+        <p id="text"></p>
+    </div>
+    <div id="lobbyscreen">
+        <div id="topthings">
+        <div id="topbar">
+            <p class="logotext">Lockdown Protocol</p>
+            <button id="play" class="topbarbuttons" onclick="play()">PLAY</button>
+            <button class="topbarbuttons" onclick="career()">STATS</button>
+            <button class="topbarbuttons" onclick="gang()">GANG</button>
+            <button class="topbarbuttons" onclick="board()">LEADERBOARD</button>
+            <button class="topbarbuttons" onclick="contracts()">CONTRACTS</button>
+            <button id="winstop" class="topbarbuttons">TIER: RUNNER</button>
+        </div>
+    </div>
+
+    <div id="gameselector">
+        <div class="gameMode">
+            <h2>JOIN MODE</h2>
+            <button id="joinSolo" class="joinButton" onclick="joinSolo()">JOIN SOLO</button>
+            <button id="joinGang" class="joinButton" onclick="joinGang()">JOIN WITH GANG</button>
+        </div>
+        <div class="zoneInfo">
+            <h3>LOCKDOWN ZONES</h3>
+            <div class="zoneItem">
+                <span class="zoneName">Aspatria Strip</span>
+                <span class="zoneDifficulty">⭐</span>
+            </div>
+            <div class="zoneItem">
+                <span class="zoneName">Industrial Broker</span>
+                <span class="zoneDifficulty">⭐⭐</span>
+            </div>
+            <div class="zoneItem">
+                <span class="zoneName">East Island Docks</span>
+                <span class="zoneDifficulty">⭐⭐⭐</span>
+            </div>
+            <div class="zoneItem">
+                <span class="zoneName">Firefly Projects</span>
+                <span class="zoneDifficulty">⭐⭐⭐⭐</span>
+            </div>
+        </div>
+        <button id="leave" onclick="leave()">LEAVE</button>
+    </div>
+
+    <div id="careerdiv">
+        <div id="top">
+            <div id="mplayed">Extractions
+                <p id="mplayedct">0</p>
+            </div>
+            <div id="winsc">Tier
+                <p id="tierct">Runner</p>
+            </div>
+        </div>
+        <div id="mid">
+            <div id="killsc">Kills
+                <p id="killst">0</p>
+            </div>
+            <div id="deathsc">Deaths
+                <p id="deathsct">0</p>
+            </div>
+        </div>
+        <div id="bottom">
+            <div id="valuec">Total Value Extracted
+                <p id="valuect">$0</p>
+            </div>
+            <div id="contractsc">Contracts Completed
+                <p id="contractsct">0</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="gangdiv">
+        <div id="gangheader">
+            <h2 id="gangtitle">YOUR GANG</h2>
+        </div>
+        <div id="gangcontent">
+            <!-- Gang info will be populated here -->
+        </div>
+        <div id="gangactions">
+            <input type="text" id="gangNameInput" placeholder="Gang Name" class="gangInput">
+            <input type="color" id="gangColorInput" value="#FF0000" class="gangInput">
+            <button id="createGangBtn" onclick="createGang()" class="gangButton">CREATE GANG</button>
+            <button id="leaveGangBtn" onclick="leaveGang()" class="gangButton">LEAVE GANG</button>
+        </div>
+        <div id="gangList">
+            <h3>AVAILABLE GANGS</h3>
+            <div id="gangListItems">
+                <!-- Available gangs will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <div id="contractsdiv">
+        <div id="contractsheader">
+            <h2>AVAILABLE CONTRACTS</h2>
+        </div>
+        <div id="contractsList">
+            <!-- Contracts will be populated here -->
+        </div>
+    </div>
+
+    <div id="leaderboarddiv">
+        <div id="leaderboard" class="scrollable">
+            <div id="topnumber">
+                <p id="toptextleaderboard">RANK</p>
+                <div id="topnumberid"></div>
+            </div>
+            <div id="name">
+                <p id="toptextleaderboard">NAME</p>
+                <div id="namep"></div>
+            </div>
+            <div id="extractions">
+                <p id="toptextleaderboard">EXTRACTIONS</p>
+                <div id="extractionsp"></div>
+            </div>
+            <div id="value">
+                <p id="toptextleaderboard">VALUE</p>
+                <div id="valuep"></div>
+            </div>
+        </div>
+    </div>
+    </div>
+    <div id="energy">
+        <p>Energy Boost</p>
+        <div id="myProgress">
+            <div id="myBar">
+            </div>
+        </div>
+    </div>
+    <div id="extraction">
+        <p>Extraction Progress</p>
+        <div id="extractionProgress">
+            <div id="extractionBar">
+            </div>
+        </div>
+    </div>
+    <script src="./index.js" type="text/javascript"></script>
+</body>
+</html>
