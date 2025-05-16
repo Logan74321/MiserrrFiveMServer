@@ -51,18 +51,6 @@ CREATE TABLE IF NOT EXISTS `lockdown_contracts` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
--- Keep the old table for compatibility during migration
-CREATE TABLE IF NOT EXISTS `pubg_stats` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `identifier` varchar(255) DEFAULT NULL,
-  `name` varchar(50) DEFAULT NULL,
-  `wins` int(11) DEFAULT NULL,
-  `games` int(11) DEFAULT NULL,
-  `kills` int(11) DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `identifier` (`identifier`)
-) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
 -- Insert default contracts if table is empty
 INSERT INTO `lockdown_contracts` (`name`, `description`, `reward_xp`, `reward_cash`, `min_tier`, `is_active`)
 SELECT 'Plant Evidence', 'Plant evidence on a police vehicle', 500, 1500, 1, 1

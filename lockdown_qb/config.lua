@@ -1,21 +1,22 @@
 Config = {}
 
 -- General Settings
-Config.DebugMode = false
+Config.DebugMode = true        -- Set to true to see debug messages (CHANGE TO FALSE AFTER DEBUGGING)
 Config.CommandName = "lockdown" -- Command to open the Lockdown menu
 Config.KeybindEnabled = true    -- Enable F10 keybind
 Config.KeybindKey = "F10"       -- Default keybind key
 
 -- Instance Settings
-Config.MinPlayers = 2           -- Minimum players to start a Lockdown instance
+Config.MinPlayers = 1           -- Minimum players to start a Lockdown instance (CHANGED TO 1 FOR TESTING)
 Config.MaxPlayers = 12          -- Maximum players per Lockdown instance
 Config.RoutingBucket = 8        -- Default routing bucket for instances
 Config.LockdownDuration = 25    -- Minutes before a Lockdown zone activates
 Config.MatchStartDelay = 4      -- Seconds delay after joining
-Config.ExtractionDelay = 10     -- Minutes before extraction points activate
+Config.ExtractionDelay = 2      -- Minutes before extraction points activate (REDUCED FOR TESTING)
 Config.ExtractTime = 10         -- Seconds needed to extract
 
 -- Zone Settings
+-- NOTE: These coordinates are for Liberty City, ensure they're valid on your map
 Config.Zones = {
     {
         name = "Aspatria Strip",
