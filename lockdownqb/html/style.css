@@ -1,5 +1,10 @@
-@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@300;400;700&display=swap');
+
+@font-face { 
+	font-family: 'LEMON';
+	src: url('fonts/LEMONMILK-Medium.otf'); 
+}
 
 *{
     overflow: hidden;
@@ -9,28 +14,180 @@
 
 body {
     /* Dark overlay for better UI contrast */
-    background-color: rgba(0, 0, 0, 0.4);
-    width: 100vw;
-    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.2);
+}
+
+/* Lockdown Announcement Popup */
+#lockdown-announcement {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 500px;
+    background-color: rgba(15, 15, 15, 0.95);
+    border: 3px solid #ff5e00;
+    border-radius: 10px;
+    padding: 20px;
+    display: flex;
+    align-items: center;
+    z-index: 9999;
+    box-shadow: 0 0 30px rgba(255, 94, 0, 0.7);
+    display: none;
+}
+
+#lockdown-announcement.pulse {
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 20px rgba(255, 94, 0, 0.6);
+    }
+    50% {
+        box-shadow: 0 0 40px rgba(255, 94, 0, 0.9);
+    }
+    100% {
+        box-shadow: 0 0 20px rgba(255, 94, 0, 0.6);
+    }
+}
+
+.announcement-icon {
+    font-size: 50px;
+    color: #ff5e00;
+    margin-right: 20px;
+    animation: blink 1s ease-in-out infinite;
+}
+
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.announcement-content {
+    flex: 1;
+}
+
+.announcement-title {
+    font-family: 'Roboto Condensed', sans-serif;
+    font-weight: 700;
+    font-size: 28px;
+    color: #ff5e00;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+.announcement-zone {
+    font-family: 'Roboto Condensed', sans-serif;
+    font-size: 18px;
+    color: white;
+    margin-bottom: 15px;
+}
+
+.announcement-instruction {
+    font-family: 'Roboto Condensed', sans-serif;
+    font-size: 20px;
+    color: #ff5e00;
+    border-top: 1px solid rgba(255, 94, 0, 0.5);
+    padding-top: 10px;
+    font-weight: 700;
+    text-align: center;
+    animation: flash 1.5s infinite;
+}
+
+@keyframes flash {
+    0%, 100% { color: #ff5e00; }
+    50% { color: white; }
+}
+
+/* Notification System */
+#notification-container {
+    position: absolute;
+    top: 40px;
+    right: 20px;
+    width: 300px;
+    z-index: 9999;
+}
+
+.notification {
+    background-color: rgba(20, 20, 20, 0.85);
+    color: white;
+    margin-bottom: 10px;
+    padding: 15px;
+    border-radius: 5px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    animation: slideIn 0.5s ease-out;
+    border-left: 4px solid #ff5e00;
+    font-family: 'Roboto Condensed', sans-serif;
+    position: relative;
+    overflow: visible;
+}
+
+.notification.success {
+    border-left-color: #4CAF50;
+}
+
+.notification.warning {
+    border-left-color: #FFC107;
+}
+
+.notification.error {
+    border-left-color: #F44336;
+}
+
+.notification-message {
+    font-size: 14px;
+    padding-right: 20px;
+}
+
+.notification-close {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.notification-close:hover {
+    color: white;
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+    }
+    to {
+        opacity: 0;
+    }
 }
 
 /* HUD Elements */
 #hud{
-    position: absolute;
     right: 0;
-    top: 8%;
     text-align: right;
     float: right;
+    margin-top: 8%;
     height: auto;
     width: auto;
     display: flex;
     flex-direction: column;
-    background-color: rgba(15, 15, 15, 0.85);
+    background-color: rgba(15, 15, 15, 0.75);
     border-left: 2px solid rgb(250, 250, 250);
     padding: 10px;
     border-top-left-radius: 5px;
     border-bottom-left-radius: 5px;
-    z-index: 1000;
 }
 
 #energy {
@@ -45,10 +202,9 @@ body {
     font-family: 'Roboto Condensed', sans-serif;
     color: rgba(245, 245, 245, 0.9);
     text-align: center;
-    background-color: rgba(15, 15, 15, 0.8);
+    background-color: rgba(15, 15, 15, 0.6);
     padding: 8px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
-    z-index: 1000;
 }
 
 #extraction {
@@ -67,7 +223,6 @@ body {
     padding: 8px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
     display: none;
-    z-index: 1000;
 }
 
 #myProgress {
@@ -114,7 +269,6 @@ body {
     width: 100%;
     height: 79%;
     text-align: center;
-    z-index: 500;
 }
 
 #text{
@@ -142,13 +296,12 @@ body {
     width: 100vw;
     height: 100vh;
     font-family: 'Roboto Condensed', sans-serif;
-    background-color: rgba(0, 0, 0, 0.8);
+    background-color: rgba(0, 0, 0, 0.7);
     box-shadow: 0 10px 20px rgba(0, 0, 0, 0.5);
-    display: block;
-    position: fixed;
-    top: 0;
-    left: 0;
-    z-index: 100;
+}
+
+#topthings{
+    display: flex;
 }
 
 #topbar{
@@ -159,8 +312,6 @@ body {
     border-bottom: 1px solid rgba(255, 255, 255, 0.2);
     display: flex;
     align-items: center;
-    position: relative;
-    z-index: 200;
 }
 
 .logotext{
@@ -218,10 +369,9 @@ body {
     background-color: rgba(30, 30, 30, 0.8);
     border-radius: 10px;
     padding: 20px;
-    display: none;
+    display: flex;
     flex-direction: column;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-    z-index: 300;
 }
 
 .gameMode {
@@ -333,8 +483,6 @@ body {
     background-color: rgba(30, 30, 30, 0.8);
     border-radius: 10px;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-    display: none;
-    z-index: 300;
 }
 
 #top, #mid, #bottom {
@@ -377,8 +525,6 @@ body {
     background-color: rgba(30, 30, 30, 0.8);
     border-radius: 10px;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-    display: none;
-    z-index: 300;
 }
 
 #gangheader {
@@ -537,8 +683,6 @@ body {
     background-color: rgba(30, 30, 30, 0.8);
     border-radius: 10px;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-    display: none;
-    z-index: 300;
 }
 
 #contractsheader {
@@ -625,8 +769,6 @@ body {
     background-color: rgba(30, 30, 30, 0.8);
     border-radius: 10px;
     box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-    display: none;
-    z-index: 300;
 }
 
 #leaderboard{
@@ -694,22 +836,6 @@ body {
     border-radius: 4px;
 }
 
-/* Debug overlay */
-#debug-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    background-color: rgba(0, 0, 0, 0.7);
-    color: lime;
-    font-family: 'Consolas', monospace;
-    font-size: 12px;
-    padding: 10px;
-    z-index: 9999;
-    max-width: 300px;
-    max-height: 200px;
-    overflow: auto;
-}
-
 /* Responsive Design */
 @media screen and (max-width: 768px) {
     #topbar {
@@ -752,5 +878,19 @@ body {
     #topnumber, #name, #extractions, #value {
         border-right: none;
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    
+    #notification-container {
+        width: 250px;
+    }
+    
+    #lockdown-announcement {
+        width: 90%;
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .announcement-icon {
+        margin: 0 0 15px 0;
     }
 }

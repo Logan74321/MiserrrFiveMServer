@@ -8,6 +8,11 @@ local LockdownInProgress = false
 local ActiveZones = {}
 local ActiveVehicles = {}
 local ActiveContracts = {}
+local AnnouncementCooldown = false
+local LockdownJoinWindow = false
+local JoinWindowDuration = 120000  -- 2 minutes to join (configurable)
+local ExtractionCount = 0
+local MaxExtractions = 4
 
 -- Initialize database (following QBCore style)
 CreateThread(function()
@@ -83,146 +88,191 @@ CreateThread(function()
             else
                 print("^1Lockdown Protocol: " .. table .. " table missing! Please run the SQL file.^7")
                 
-                -- Auto-create missing tables
+                -- Create tables if they don't exist
                 if table == "lockdown_stats" then
                     MySQL.query([[
                         CREATE TABLE IF NOT EXISTS `lockdown_stats` (
-                          `id` int(11) NOT NULL AUTO_INCREMENT,
-                          `identifier` varchar(255) NOT NULL,
-                          `name` varchar(50) DEFAULT NULL,
-                          `extractions` int(11) DEFAULT 0,
-                          `deaths` int(11) DEFAULT 0,
-                          `kills` int(11) DEFAULT 0,
-                          `contracts_completed` int(11) DEFAULT 0,
-                          `extracted_value` int(11) DEFAULT 0,
-                          `highest_solo_streak` int(11) DEFAULT 0,
-                          `criminal_tier` int(11) DEFAULT 1,
-                          `timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-                          PRIMARY KEY (`id`),
-                          KEY `identifier` (`identifier`)
+                            `id` int(11) NOT NULL AUTO_INCREMENT,
+                            `identifier` varchar(255) NOT NULL,
+                            `name` varchar(50) DEFAULT NULL,
+                            `extractions` int(11) DEFAULT 0,
+                            `deaths` int(11) DEFAULT 0,
+                            `kills` int(11) DEFAULT 0,
+                            `contracts_completed` int(11) DEFAULT 0,
+                            `extracted_value` int(11) DEFAULT 0,
+                            `highest_solo_streak` int(11) DEFAULT 0,
+                            `criminal_tier` int(11) DEFAULT 1,
+                            `timestamp` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+                            PRIMARY KEY (`id`),
+                            KEY `identifier` (`identifier`)
                         ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-                    ]], function()
-                        print("^2Lockdown Protocol: Created lockdown_stats table^7")
-                    end)
+                    ]])
+                    print("^2Lockdown Protocol: Created lockdown_stats table^7")
                 elseif table == "lockdown_gangs" then
                     MySQL.query([[
                         CREATE TABLE IF NOT EXISTS `lockdown_gangs` (
-                          `id` int(11) NOT NULL AUTO_INCREMENT,
-                          `name` varchar(50) DEFAULT NULL,
-                          `color` varchar(7) DEFAULT '#FFFFFF',
-                          `emblem` int(11) DEFAULT 0,
-                          `created_by` varchar(255) DEFAULT NULL,
-                          `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
-                          PRIMARY KEY (`id`),
-                          KEY `name` (`name`)
+                            `id` int(11) NOT NULL AUTO_INCREMENT,
+                            `name` varchar(50) DEFAULT NULL,
+                            `color` varchar(7) DEFAULT '#FFFFFF',
+                            `emblem` int(11) DEFAULT 0,
+                            `created_by` varchar(255) DEFAULT NULL,
+                            `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+                            PRIMARY KEY (`id`),
+                            KEY `name` (`name`)
                         ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-                    ]], function()
-                        print("^2Lockdown Protocol: Created lockdown_gangs table^7")
-                    end)
+                    ]])
+                    print("^2Lockdown Protocol: Created lockdown_gangs table^7")
                 elseif table == "lockdown_gang_members" then
                     MySQL.query([[
                         CREATE TABLE IF NOT EXISTS `lockdown_gang_members` (
-                          `id` int(11) NOT NULL AUTO_INCREMENT,
-                          `gang_id` int(11) NOT NULL,
-                          `identifier` varchar(255) DEFAULT NULL,
-                          `name` varchar(50) DEFAULT NULL,
-                          `rank` int(11) DEFAULT 1,
-                          `joined_at` timestamp NOT NULL DEFAULT current_timestamp(),
-                          PRIMARY KEY (`id`),
-                          KEY `gang_id` (`gang_id`),
-                          KEY `identifier` (`identifier`)
+                            `id` int(11) NOT NULL AUTO_INCREMENT,
+                            `gang_id` int(11) NOT NULL,
+                            `identifier` varchar(255) DEFAULT NULL,
+                            `name` varchar(50) DEFAULT NULL,
+                            `rank` int(11) DEFAULT 1,
+                            `joined_at` timestamp NOT NULL DEFAULT current_timestamp(),
+                            PRIMARY KEY (`id`),
+                            KEY `gang_id` (`gang_id`),
+                            KEY `identifier` (`identifier`)
                         ) ENGINE=InnoDB AUTO_INCREMENT=1 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
-                    ]], function()
-                        print("^2Lockdown Protocol: Created lockdown_gang_members table^7")
-                    end)
+                    ]])
+                    print("^2Lockdown Protocol: Created lockdown_gang_members table^7")
                 end
             end
         end)
     end
 end)
 
--- Command to verify database tables
-RegisterCommand('checkldtables', function(source)
-    local tables = {
-        "lockdown_stats",
-        "lockdown_gangs",
-        "lockdown_gang_members",
-        "lockdown_contracts"
-    }
-    
-    for _, tableName in ipairs(tables) do
-        MySQL.query('SHOW TABLES LIKE ?', {tableName}, function(result)
-            local exists = result and result[1] ~= nil
-            print("Table " .. tableName .. " exists: " .. tostring(exists))
-        end)
+-- Admin command to trigger Lockdown
+RegisterCommand('lockdown', function(source, args, rawCommand)
+    -- Check if source is console or admin
+    if source == 0 or IsPlayerAceAllowed(source, "command.lockdown") then
+        -- Select random zone for announcement
+        local zoneIndex = math.random(1, #Config.Zones)
+        local zoneName = Config.Zones[zoneIndex].name
+        
+        -- Trigger announcement for all players
+        TriggerLockdownAnnouncement(zoneName)
+        
+        if source == 0 then
+            print("^2Lockdown Protocol: Manual announcement triggered for zone " .. zoneName .. "^7")
+        else
+            TriggerClientEvent('lockdown:notification', source, "Lockdown announcement triggered for " .. zoneName)
+        end
+    else
+        TriggerClientEvent('lockdown:notification', source, "You don't have permission to use this command.")
     end
-end, true) -- Only allow server console
+end, false)
 
--- Enhanced callback with error handling for player stats
+-- Function to trigger lockdown announcement and open join window
+function TriggerLockdownAnnouncement(zoneName)
+    if LockdownInProgress or LockdownJoinWindow then
+        return -- Don't start a new lockdown if one is already in progress
+    end
+    
+    -- Start join window
+    LockdownJoinWindow = true
+    
+    -- Trigger announcement for all players
+    TriggerClientEvent('lockdown:announceProtocol', -1, zoneName)
+    
+    -- Close join window after JoinWindowDuration
+    Citizen.SetTimeout(JoinWindowDuration, function()
+        -- Close join window
+        LockdownJoinWindow = false
+        
+        -- Start the lockdown if we have enough players
+        local zoneId = nil
+        for id, zone in pairs(ActiveZones) do
+            if not zone.started and #zone.players >= MinPlayers then
+                zoneId = id
+                break
+            end
+        end
+        
+        if zoneId then
+            StartLockdown(zoneId)
+        else
+            -- Not enough players joined, cleanup
+            for id, zone in pairs(ActiveZones) do
+                if not zone.started then
+                    -- Return players to freemode
+                    for _, player in ipairs(zone.players) do
+                        TriggerClientEvent('lockdown:notification', player, "Not enough players joined. Lockdown cancelled.")
+                        TriggerClientEvent('lockdown:returnToFreemode', player)
+                        
+                        -- Reset player routing bucket
+                        SetPlayerRoutingBucket(player, 0)
+                    end
+                    
+                    -- Remove zone
+                    ActiveZones[id] = nil
+                end
+            end
+            
+            -- Reset players in zone
+            PlayersInZone = {}
+        end
+    end)
+end
+
+-- Periodic Lockdown announcement
+CreateThread(function()
+    while true do
+        Citizen.Wait(Config.LockdownDuration * 60000) -- Convert minutes to milliseconds
+        
+        if not LockdownInProgress and not LockdownJoinWindow and not AnnouncementCooldown then
+            -- Select random zone for announcement
+            local zoneIndex = math.random(1, #Config.Zones)
+            local zoneName = Config.Zones[zoneIndex].name
+            
+            -- Trigger lockdown announcement
+            TriggerLockdownAnnouncement(zoneName)
+            
+            -- Set cooldown
+            AnnouncementCooldown = true
+            Citizen.SetTimeout(5 * 60000, function() -- 5 minute cooldown
+                AnnouncementCooldown = false
+            end)
+        end
+    end
+end)
+
+-- Callback for getting player stats
 QBCore.Functions.CreateCallback('lockdown:getPlayerStats', function(source, cb)
     local Player = QBCore.Functions.GetPlayer(source)
-    if not Player then 
-        print("Player not found for source: " .. source)
-        return cb({
-            extractions = 0,
-            deaths = 0,
-            kills = 0,
-            contracts_completed = 0,
-            extracted_value = 0,
-            tier_name = "Runner",
-            tier_color = "#B0B0B0"
-        }) 
-    end
+    if not Player then return cb(nil) end
     
     local identifier = Player.PlayerData.citizenid
-    print("Getting stats for player: " .. identifier)
     
-    -- Check if tables exist first
-    MySQL.query('SHOW TABLES LIKE "lockdown_stats"', function(tableResult)
-        if not tableResult or not tableResult[1] then
-            print("lockdown_stats table does not exist, creating default stats")
-            return cb({
+    MySQL.query('SELECT * FROM lockdown_stats WHERE identifier = ?', {identifier}, function(results)
+        if results and results[1] then
+            -- Get criminal tier info
+            local tier = GetCriminalTier(results[1].extractions)
+            results[1].tier_name = tier.name
+            results[1].tier_color = tier.color
+            cb(results[1])
+        else
+            -- Create new entry for player
+            MySQL.insert('INSERT INTO lockdown_stats (identifier, name, extractions, deaths, kills, contracts_completed, extracted_value, highest_solo_streak, criminal_tier) VALUES (?, ?, 0, 0, 0, 0, 0, 0, 1)', 
+            {
+                identifier,
+                Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname
+            })
+            
+            -- Return default stats
+            cb({
                 extractions = 0,
                 deaths = 0,
                 kills = 0,
-                contracts_completed = 0, 
+                contracts_completed = 0,
                 extracted_value = 0,
-                tier_name = "Runner",
-                tier_color = "#B0B0B0"
+                highest_solo_streak = 0,
+                criminal_tier = 1,
+                tier_name = Config.CriminalTiers[1].name,
+                tier_color = Config.CriminalTiers[1].color
             })
         end
-        
-        MySQL.query('SELECT * FROM lockdown_stats WHERE identifier = ?', {identifier}, function(results)
-            if results and results[1] then
-                -- Get criminal tier info
-                local tier = GetCriminalTier(results[1].extractions)
-                results[1].tier_name = tier.name
-                results[1].tier_color = tier.color
-                print("Found stats for player: " .. json.encode(results[1]))
-                cb(results[1])
-            else
-                print("No stats found, creating new entry")
-                -- Create new entry for player
-                MySQL.insert('INSERT INTO lockdown_stats (identifier, name, extractions, deaths, kills, contracts_completed, extracted_value, highest_solo_streak, criminal_tier) VALUES (?, ?, 0, 0, 0, 0, 0, 0, 1)', 
-                {
-                    identifier,
-                    Player.PlayerData.charinfo.firstname .. ' ' .. Player.PlayerData.charinfo.lastname
-                })
-                
-                -- Return default stats
-                cb({
-                    extractions = 0,
-                    deaths = 0,
-                    kills = 0,
-                    contracts_completed = 0,
-                    extracted_value = 0,
-                    highest_solo_streak = 0,
-                    criminal_tier = 1,
-                    tier_name = Config.CriminalTiers[1].name,
-                    tier_color = Config.CriminalTiers[1].color
-                })
-            end
-        end)
     end)
 end)
 
@@ -242,21 +292,24 @@ end
 -- Gang system callbacks
 QBCore.Functions.CreateCallback('lockdown:getGangData', function(source, cb)
     local Player = QBCore.Functions.GetPlayer(source)
-    if not Player then return cb({in_gang = false, gangs = {}}) end
+    if not Player then return cb(nil) end
     
     local identifier = Player.PlayerData.citizenid
     
     -- Check if player is in a gang
     MySQL.query('SELECT g.*, gm.rank FROM lockdown_gangs g INNER JOIN lockdown_gang_members gm ON g.id = gm.gang_id WHERE gm.identifier = ?', {identifier}, function(results)
         if results and results[1] then
+            -- Player is in a gang
+            local gangData = results[1]
+            gangData.in_gang = true
+            
             -- Get gang members
-            MySQL.query('SELECT name, rank FROM lockdown_gang_members WHERE gang_id = ?', {results[1].id}, function(members)
-                results[1].members = members
-                results[1].in_gang = true
-                cb(results[1])
+            MySQL.query('SELECT name, rank FROM lockdown_gang_members WHERE gang_id = ?', {gangData.id}, function(members)
+                gangData.members = members
+                cb(gangData)
             end)
         else
-            -- Get all gangs for display
+            -- Player is not in a gang, get all available gangs
             MySQL.query('SELECT id, name, color FROM lockdown_gangs', {}, function(gangs)
                 cb({
                     in_gang = false,
@@ -351,6 +404,25 @@ QBCore.Functions.CreateCallback('lockdown:joinGang', function(source, cb, gangId
     end)
 end)
 
+QBCore.Functions.CreateCallback('lockdown:leaveGang', function(source, cb)
+    local Player = QBCore.Functions.GetPlayer(source)
+    if not Player then return cb(false, "Player not found") end
+    
+    local identifier = Player.PlayerData.citizenid
+    
+    -- Check if player is in a gang
+    MySQL.query('SELECT * FROM lockdown_gang_members WHERE identifier = ?', {identifier}, function(results)
+        if not results or not results[1] then
+            return cb(false, "You are not in a gang")
+        end
+        
+        -- Remove player from gang
+        MySQL.query('DELETE FROM lockdown_gang_members WHERE identifier = ?', {identifier}, function()
+            cb(true, "You have left the gang")
+        end)
+    end)
+end)
+
 -- Leaderboard callback
 QBCore.Functions.CreateCallback('lockdown:getLeaderboard', function(source, cb)
     MySQL.query('SELECT name, extractions, kills, extracted_value FROM lockdown_stats ORDER BY extracted_value DESC LIMIT 10', {}, function(results)
@@ -405,6 +477,11 @@ QBCore.Functions.CreateCallback('lockdown:hasItem', function(source, cb, itemNam
     cb(hasItem)
 end)
 
+-- Check if join window is open
+QBCore.Functions.CreateCallback('lockdown:isJoinWindowOpen', function(source, cb)
+    cb(LockdownJoinWindow)
+end)
+
 -- Join Lockdown request
 RegisterNetEvent('lockdown:joinRequest')
 AddEventHandler('lockdown:joinRequest', function(joinType, gangId)
@@ -412,14 +489,24 @@ AddEventHandler('lockdown:joinRequest', function(joinType, gangId)
     local Player = QBCore.Functions.GetPlayer(source)
     if not Player then return end
     
-    print("^2Player " .. Player.PlayerData.name .. " requesting to join Lockdown - Type: " .. tostring(joinType) .. "^7")
+    -- Check if join window is open
+    if not LockdownJoinWindow then
+        TriggerClientEvent('lockdown:joinResponse', source, 'window_closed')
+        return
+    end
+    
+    -- Check if player is already in a lockdown session
+    if PlayersInZone[source] then
+        TriggerClientEvent('lockdown:joinResponse', source, 'already_joined')
+        return
+    end
     
     -- Check if there's an active zone with space
     local availableZone = nil
     local playerCount = 0
     
     for zoneId, zone in pairs(ActiveZones) do
-        if #zone.players < MaxPlayers then
+        if #zone.players < MaxPlayers and not zone.started then
             availableZone = zone
             playerCount = #zone.players
             break
@@ -427,7 +514,7 @@ AddEventHandler('lockdown:joinRequest', function(joinType, gangId)
     end
     
     -- If no available zone, create a new one
-    if not availableZone and not LockdownInProgress then
+    if not availableZone then
         -- Select a random zone from config
         local zoneIndex = math.random(1, #Config.Zones)
         local zoneData = Config.Zones[zoneIndex]
@@ -438,13 +525,12 @@ AddEventHandler('lockdown:joinRequest', function(joinType, gangId)
             id = newZoneId,
             data = zoneData,
             players = {},
-            startTime = os.time()
+            startTime = os.time(),
+            started = false
         }
         
         availableZone = ActiveZones[newZoneId]
         playerCount = 0
-        
-        print("^2Created new Lockdown zone ID: " .. newZoneId .. "^7")
     end
     
     -- If joining with gang, check gang members
@@ -494,17 +580,6 @@ AddEventHandler('lockdown:joinRequest', function(joinType, gangId)
             AddPlayerToZone(source, availableZone.id)
             
             TriggerClientEvent('lockdown:joinResponse', source, 'joined', playerCount + 1, MaxPlayers, availableZone.data)
-            
-            -- If minimum players reached, start the zone after a delay
-            if #availableZone.players >= MinPlayers and not LockdownInProgress then
-                LockdownInProgress = true
-                
-                print("^2Minimum players reached (" .. MinPlayers .. "), starting Lockdown in 5 seconds^7")
-                
-                Citizen.SetTimeout(5000, function()
-                    StartLockdown(availableZone.id)
-                end)
-            end
         else
             TriggerClientEvent('lockdown:joinResponse', source, 'zone_full')
         end
@@ -529,7 +604,8 @@ function AddPlayerToZone(source, zoneId)
     table.insert(ActiveZones[zoneId].players, source)
     PlayersInZone[source] = zoneId
     
-    print("^2Player " .. source .. " added to zone " .. zoneId .. "^7")
+    -- Set player routing bucket
+    SetPlayerRoutingBucket(source, Config.RoutingBucket)
     
     -- Update player count for all players in the zone
     UpdatePlayerCount(zoneId)
@@ -561,13 +637,18 @@ end)
 function StartLockdown(zoneId)
     if not ActiveZones[zoneId] then return end
     
-    print("^2Starting Lockdown in zone " .. zoneId .. "^7")
+    -- Reset extraction count
+    ExtractionCount = 0
     
     -- Mark zone as started
     ActiveZones[zoneId].started = true
+    LockdownInProgress = true
     
-    -- Notify all players
-    for _, player in ipairs(ActiveZones[zoneId].players) do
+    -- Notify all players and spawn them
+    local spawnPoints = GetSpawnPoints(ActiveZones[zoneId].data.center, ActiveZones[zoneId].data.radius)
+    local gangMembers = GetGangMembers(ActiveZones[zoneId].players)
+    
+    for playerIndex, player in ipairs(ActiveZones[zoneId].players) do
         -- Generate a random contract if available
         local contract = nil
         
@@ -575,40 +656,184 @@ function StartLockdown(zoneId)
             contract = ActiveContracts[player]
         end
         
+        -- Determine spawn point based on gang membership
+        local spawn = nil
+        
+        if gangMembers[player] then
+            -- Player is in a gang, use gang's spawn point
+            spawn = spawnPoints[gangMembers[player].gangIndex]
+        else
+            -- Solo player, use individual spawn point
+            spawn = spawnPoints[playerIndex]
+        end
+        
         -- Start Lockdown for player
-        TriggerClientEvent('lockdown:start', player, ActiveZones[zoneId].data, contract)
+        TriggerClientEvent('lockdown:start', player, ActiveZones[zoneId].data, contract, spawn)
     end
     
-    -- Spawn vehicles if enabled (handled by client for now)
+    -- Spawn vehicles
+    SpawnVehiclesInZone(zoneId)
+    
+    -- Schedule extraction points (every 4 minutes)
+    ScheduleExtraction(zoneId, 4 * 60000) -- 4 minutes * 60000 ms
     
     -- Set a timer to end the Lockdown if no one extracts
-    Citizen.SetTimeout(30 * 60000, function() -- 30 minutes
-        if ActiveZones[zoneId] then
-            print("^3Lockdown in zone " .. zoneId .. " timed out after 30 minutes^7")
-            EndLockdown(zoneId)
+    Citizen.SetTimeout(20 * 60000, function() -- 20 minutes
+        EndLockdown(zoneId)
+    end)
+end
+
+-- Function to get spawn points distributed across the zone
+function GetSpawnPoints(center, radius)
+    local spawnPoints = {}
+    local angles = {0, 45, 90, 135, 180, 225, 270, 315} -- Distribute around the circle
+    
+    for i = 1, MaxPlayers do
+        local angle = angles[((i-1) % 8) + 1] * math.pi / 180
+        local distance = radius * 0.7 -- 70% of the way to the edge
+        
+        local x = center.x + math.cos(angle) * distance
+        local y = center.y + math.sin(angle) * distance
+        local z = center.z
+        
+        -- Find ground Z
+        local ground = 0
+        local foundGround, groundZ = GetGroundZFor_3dCoord(x, y, 1000.0, 0)
+        
+        if foundGround then
+            z = groundZ + 1.0
+        end
+        
+        table.insert(spawnPoints, vector3(x, y, z))
+    end
+    
+    return spawnPoints
+end
+
+-- Function to group players by gang
+function GetGangMembers(players)
+    local gangMembers = {}
+    local gangIndex = 1
+    
+    for _, playerId in ipairs(players) do
+        local Player = QBCore.Functions.GetPlayer(playerId)
+        if Player then
+            local identifier = Player.PlayerData.citizenid
+            
+            -- Check if player is in a gang
+            MySQL.query('SELECT gang_id FROM lockdown_gang_members WHERE identifier = ?', {identifier}, function(results)
+                if results and results[1] then
+                    local gangId = results[1].gang_id
+                    
+                    -- Find or create gang group
+                    local gangFound = false
+                    for _, member in pairs(gangMembers) do
+                        if member.gangId == gangId then
+                            gangMembers[playerId] = {gangId = gangId, gangIndex = member.gangIndex}
+                            gangFound = true
+                            break
+                        end
+                    end
+                    
+                    if not gangFound then
+                        gangMembers[playerId] = {gangId = gangId, gangIndex = gangIndex}
+                        gangIndex = gangIndex + 1
+                    end
+                end
+            end)
+        end
+    end
+    
+    return gangMembers
+end
+
+-- Function to schedule extraction points
+function ScheduleExtraction(zoneId, delay)
+    if ExtractionCount >= MaxExtractions then
+        return -- All extractions used
+    end
+    
+    Citizen.SetTimeout(delay, function()
+        if not ActiveZones[zoneId] or not ActiveZones[zoneId].started then
+            return -- Zone no longer active
+        end
+        
+        -- Increment extraction count
+        ExtractionCount = ExtractionCount + 1
+        
+        -- Select a random extraction point
+        local extractionIndex = math.random(1, #Config.ExtractionPoints)
+        local extraction = Config.ExtractionPoints[extractionIndex]
+        
+        -- Notify all players in the zone
+        for _, player in ipairs(ActiveZones[zoneId].players) do
+            TriggerClientEvent('lockdown:activateExtractionPoint', player, extraction, 45) -- 45 seconds duration
+        end
+        
+        -- Schedule next extraction if not at max
+        if ExtractionCount < MaxExtractions then
+            ScheduleExtraction(zoneId, 4 * 60000) -- 4 minutes
+        else
+            -- This is the last extraction - warn players
+            for _, player in ipairs(ActiveZones[zoneId].players) do
+                TriggerClientEvent('lockdown:notification', player, "WARNING: This is the final extraction opportunity!")
+            end
         end
     end)
+end
+
+-- Function to spawn vehicles in the zone
+function SpawnVehiclesInZone(zoneId)
+    if not ActiveZones[zoneId] then return end
+    
+    for _, spawnPoint in ipairs(Config.VehicleSpawns) do
+        -- Check spawn chance
+        if math.random() <= spawnPoint.spawnChance then
+            -- Choose random vehicle model
+            local modelIndex = math.random(1, #spawnPoint.models)
+            local modelName = spawnPoint.models[modelIndex]
+            
+            -- Create vehicle
+            local vehicle = CreateVehicleServerSetter(GetHashKey(modelName), 'automobile', spawnPoint.coords.x, spawnPoint.coords.y, spawnPoint.coords.z, spawnPoint.heading)
+            
+            -- Set routing bucket
+            SetEntityRoutingBucket(vehicle, Config.RoutingBucket)
+            
+            -- Add to active vehicles
+            table.insert(ActiveVehicles, vehicle)
+        end
+    end
 end
 
 -- Function to end Lockdown in a zone
 function EndLockdown(zoneId)
     if not ActiveZones[zoneId] then return end
     
-    print("^2Ending Lockdown in zone " .. zoneId .. "^7")
-    
     -- Notify all remaining players
     for _, player in ipairs(ActiveZones[zoneId].players) do
         TriggerClientEvent('lockdown:eliminated', player)
-        SetPlayerRoutingBucket(player, 0)
     end
     
     -- Clear zone data
+    PlayersInZone = {}
     ActiveZones[zoneId] = nil
     
-    -- Reset LockdownInProgress if no active zones
-    if next(ActiveZones) == nil then
-        LockdownInProgress = false
+    -- Reset LockdownInProgress
+    LockdownInProgress = false
+    
+    -- Clean up vehicles
+    for _, vehicle in ipairs(ActiveVehicles) do
+        if DoesEntityExist(vehicle) then
+            DeleteEntity(vehicle)
+        end
     end
+    ActiveVehicles = {}
+    
+    -- Reset extraction count
+    ExtractionCount = 0
+    
+    -- Reset announcement cooldown
+    AnnouncementCooldown = false
 end
 
 -- Leave zone event
@@ -618,8 +843,6 @@ AddEventHandler('lockdown:leaveZone', function()
     local zoneId = PlayersInZone[source]
     
     if not zoneId or not ActiveZones[zoneId] then return end
-    
-    print("^2Player " .. source .. " leaving zone " .. zoneId .. "^7")
     
     -- Clear player inventory if using ox_inventory
     if Config.CheckInventory then
@@ -637,7 +860,7 @@ AddEventHandler('lockdown:leaveZone', function()
     -- Update player's death count
     local Player = QBCore.Functions.GetPlayer(source)
     if Player then
-        MySQL.update('UPDATE lockdown_stats SET deaths = deaths + 1 WHERE identifier = ?', {Player.PlayerData.citizenid})
+        MySQL.query('UPDATE lockdown_stats SET deaths = deaths + 1 WHERE identifier = ?', {Player.PlayerData.citizenid})
     end
     
     -- Remove from PlayersInZone
@@ -651,7 +874,6 @@ AddEventHandler('lockdown:leaveZone', function()
         -- If one player left, they win
         if #ActiveZones[zoneId].players == 1 then
             local winner = ActiveZones[zoneId].players[1]
-            print("^3Player " .. winner .. " won the Lockdown in zone " .. zoneId .. "^7")
             TriggerClientEvent('lockdown:gameEnd', winner)
             
             -- Update winner stats
@@ -663,7 +885,10 @@ AddEventHandler('lockdown:leaveZone', function()
                 end
                 
                 -- Update stats
-                MySQL.update('UPDATE lockdown_stats SET extractions = extractions + 1 WHERE identifier = ?', {WinnerPlayer.PlayerData.citizenid})
+                MySQL.query('UPDATE lockdown_stats SET extractions = extractions + 1 WHERE identifier = ?', {WinnerPlayer.PlayerData.citizenid})
+                
+                -- Check for criminal tier upgrade
+                CheckCriminalTierUpgrade(WinnerPlayer.PlayerData.citizenid)
             end
             
             -- Reset player routing bucket
@@ -687,8 +912,6 @@ AddEventHandler('lockdown:leaveLobby', function()
     local source = source
     local zoneId = PlayersInZone[source]
     
-    print("^2Player " .. source .. " leaving lobby^7")
-    
     if zoneId and ActiveZones[zoneId] and not ActiveZones[zoneId].started then
         -- Remove player from zone
         for i, player in ipairs(ActiveZones[zoneId].players) do
@@ -701,6 +924,9 @@ AddEventHandler('lockdown:leaveLobby', function()
         -- Remove from PlayersInZone
         PlayersInZone[source] = nil
         
+        -- Reset player routing bucket if needed
+        SetPlayerRoutingBucket(source, 0)
+        
         -- Update player count
         UpdatePlayerCount(zoneId)
     end
@@ -712,8 +938,6 @@ AddEventHandler('lockdown:recordParticipation', function()
     local source = source
     local Player = QBCore.Functions.GetPlayer(source)
     if not Player then return end
-    
-    print("^2Recording participation for player " .. source .. "^7")
     
     -- Set player routing bucket
     SetPlayerRoutingBucket(source, Config.RoutingBucket)
@@ -729,15 +953,13 @@ AddEventHandler('lockdown:playerKilled', function(killerId)
     
     if not zoneId or not ActiveZones[zoneId] or not killerId then return end
     
-    print("^2Player " .. source .. " killed by " .. killerId .. " in zone " .. zoneId .. "^7")
-    
     -- Increment killer's kill count
     TriggerClientEvent('lockdown:addKill', killerId)
     
     -- Update killer's stats
     local KillerPlayer = QBCore.Functions.GetPlayer(killerId)
     if KillerPlayer then
-        MySQL.update('UPDATE lockdown_stats SET kills = kills + 1 WHERE identifier = ?', {KillerPlayer.PlayerData.citizenid})
+        MySQL.query('UPDATE lockdown_stats SET kills = kills + 1 WHERE identifier = ?', {KillerPlayer.PlayerData.citizenid})
     end
 end)
 
@@ -747,8 +969,6 @@ AddEventHandler('lockdown:addLoot', function(lootName, lootData)
     local source = source
     local Player = QBCore.Functions.GetPlayer(source)
     if not Player then return end
-    
-    print("^2Adding loot " .. lootName .. " to player " .. source .. "^7")
     
     -- Add item to player's inventory
     local amount = 1
@@ -788,8 +1008,6 @@ AddEventHandler('lockdown:startExtraction', function(extractionName)
     
     if not zoneId or not ActiveZones[zoneId] then return end
     
-    print("^2Player " .. source .. " starting extraction at " .. extractionName .. " in zone " .. zoneId .. "^7")
-    
     -- Notify other players in the zone
     for _, player in ipairs(ActiveZones[zoneId].players) do
         if player ~= source then
@@ -807,8 +1025,6 @@ AddEventHandler('lockdown:completeExtraction', function(extractionName)
     
     local zoneId = PlayersInZone[source]
     if not zoneId or not ActiveZones[zoneId] then return end
-    
-    print("^2Player " .. source .. " completed extraction at " .. extractionName .. " in zone " .. zoneId .. "^7")
     
     -- Process player's loot
     local totalValue = 0
@@ -856,7 +1072,7 @@ AddEventHandler('lockdown:completeExtraction', function(extractionName)
         totalValue = totalValue + ActiveContracts[source].reward_cash
         
         -- Update contract completion stats
-        MySQL.update('UPDATE lockdown_stats SET contracts_completed = contracts_completed + 1 WHERE identifier = ?', {Player.PlayerData.citizenid})
+        MySQL.query('UPDATE lockdown_stats SET contracts_completed = contracts_completed + 1 WHERE identifier = ?', {Player.PlayerData.citizenid})
         
         -- Notify player
         TriggerClientEvent('lockdown:contractCompleted', source, ActiveContracts[source].reward_cash)
@@ -869,7 +1085,7 @@ AddEventHandler('lockdown:completeExtraction', function(extractionName)
     Player.Functions.AddMoney('cash', math.floor(totalValue * Config.LaunderingRate))
     
     -- Update player stats
-    MySQL.update('UPDATE lockdown_stats SET extractions = extractions + 1, extracted_value = extracted_value + ? WHERE identifier = ?', 
+    MySQL.query('UPDATE lockdown_stats SET extractions = extractions + 1, extracted_value = extracted_value + ? WHERE identifier = ?', 
     {
         totalValue,
         Player.PlayerData.citizenid
@@ -899,13 +1115,6 @@ AddEventHandler('lockdown:completeExtraction', function(extractionName)
     
     -- Check if zone should end
     if #ActiveZones[zoneId].players <= 1 then
-        if #ActiveZones[zoneId].players == 1 then
-            local winner = ActiveZones[zoneId].players[1]
-            TriggerClientEvent('lockdown:gameEnd', winner)
-            
-            -- Reset player routing bucket
-            SetPlayerRoutingBucket(winner, 0)
-        end
         EndLockdown(zoneId)
     else
         -- Update player count
@@ -926,7 +1135,7 @@ function CheckCriminalTierUpgrade(identifier)
         for _, tier in pairs(Config.CriminalTiers) do
             if extractions >= tier.requiredExtractions and tier.id > currentTier then
                 -- Upgrade tier
-                MySQL.update('UPDATE lockdown_stats SET criminal_tier = ? WHERE identifier = ?', {tier.id, identifier})
+                MySQL.query('UPDATE lockdown_stats SET criminal_tier = ? WHERE identifier = ?', {tier.id, identifier})
                 
                 -- Notify player of upgrade
                 local playerSource = QBCore.Functions.GetPlayerByCitizenId(identifier)
@@ -961,7 +1170,10 @@ Citizen.CreateThread(function()
                         end
                         
                         -- Update stats
-                        MySQL.update('UPDATE lockdown_stats SET extractions = extractions + 1 WHERE identifier = ?', {WinnerPlayer.PlayerData.citizenid})
+                        MySQL.query('UPDATE lockdown_stats SET extractions = extractions + 1 WHERE identifier = ?', {WinnerPlayer.PlayerData.citizenid})
+                        
+                        -- Check for criminal tier upgrade
+                        CheckCriminalTierUpgrade(WinnerPlayer.PlayerData.citizenid)
                     end
                     
                     -- Reset player routing bucket
@@ -981,8 +1193,6 @@ AddEventHandler('playerDropped', function(reason)
     local zoneId = PlayersInZone[source]
     
     if zoneId and ActiveZones[zoneId] then
-        print("^2Player " .. source .. " disconnected from zone " .. zoneId .. "^7")
-        
         -- Remove player from zone
         for i, player in ipairs(ActiveZones[zoneId].players) do
             if player == source then
@@ -1018,7 +1228,10 @@ AddEventHandler('playerDropped', function(reason)
                     end
                     
                     -- Update stats
-                    MySQL.update('UPDATE lockdown_stats SET extractions = extractions + 1 WHERE identifier = ?', {WinnerPlayer.PlayerData.citizenid})
+                    MySQL.query('UPDATE lockdown_stats SET extractions = extractions + 1 WHERE identifier = ?', {WinnerPlayer.PlayerData.citizenid})
+                    
+                    -- Check for criminal tier upgrade
+                    CheckCriminalTierUpgrade(WinnerPlayer.PlayerData.citizenid)
                 end
                 
                 -- Reset player routing bucket

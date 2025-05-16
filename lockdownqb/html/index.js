@@ -2,6 +2,7 @@ $(function () {
     $("body").hide();
     $('#energy').hide();
     $('#extraction').hide();
+    $('#lockdown-announcement').hide();
     
     // Event listener for messages from the client-side script
     window.addEventListener('message', function(event) {
@@ -16,6 +17,16 @@ $(function () {
         let extractionBar = document.getElementById("extractionBar");
         
         var item = event.data;
+        
+        // Handle notification
+        if (item.type === "notification") {
+            showNotification(item.message, item.notificationType || 'info');
+        }
+        
+        // Handle lockdown announcement
+        if (item.type === "lockdownAnnouncement") {
+            showLockdownAnnouncement(item.zoneName);
+        }
         
         // Text notifications (e.g., "Victory", "Eliminated")
         if (item.type === "text") {
@@ -115,6 +126,7 @@ $(function () {
             $("body").fadeOut();
             $('#energy').hide();
             $('#extraction').hide();
+            $('#lockdown-announcement').hide();
         }   
         
         // Play loot sound
@@ -286,7 +298,66 @@ $(function () {
                 $('#contractsList').append($('<div>').addClass('contractItem').text('No contracts available'));
             }
         }
-    });   
+    });
+
+    // Function to show notifications
+    function showNotification(message, type) {
+        type = type || 'info';
+        
+        const notification = $('<div>').addClass('notification').addClass(type);
+        const notificationMessage = $('<div>').addClass('notification-message').text(message);
+        const closeButton = $('<div>').addClass('notification-close').html('&times;');
+        
+        notification.append(notificationMessage).append(closeButton);
+        $('#notification-container').append(notification);
+        
+        // Auto remove notification after 5 seconds
+        setTimeout(function() {
+            notification.css('animation', 'fadeOut 0.5s ease-out forwards');
+            setTimeout(function() {
+                notification.remove();
+            }, 500);
+        }, 5000);
+        
+        // Close button handler
+        closeButton.on('click', function() {
+            notification.css('animation', 'fadeOut 0.5s ease-out forwards');
+            setTimeout(function() {
+                notification.remove();
+            }, 500);
+        });
+    }
+    
+    // Function to show lockdown announcement
+    function showLockdownAnnouncement(zoneName) {
+        // Create announcement if it doesn't exist
+        if ($('#lockdown-announcement').length === 0) {
+            const announcement = $('<div>').attr('id', 'lockdown-announcement');
+            const icon = $('<div>').addClass('announcement-icon').html('<i class="fas fa-exclamation-triangle"></i>');
+            const content = $('<div>').addClass('announcement-content');
+            const title = $('<div>').addClass('announcement-title').text('LOCKDOWN PROTOCOL INITIATED');
+            const desc = $('<div>').addClass('announcement-zone').attr('id', 'announcement-zone');
+            const instruction = $('<div>').addClass('announcement-instruction').text('Press ENTER to join');
+            
+            content.append(title).append(desc).append(instruction);
+            announcement.append(icon).append(content);
+            $('body').append(announcement);
+        }
+        
+        // Update zone name
+        $('#announcement-zone').text('ZONE: ' + zoneName);
+        
+        // Show announcement
+        $('#lockdown-announcement').show();
+        
+        // Pulse animation
+        $('#lockdown-announcement').addClass('pulse');
+        
+        // Hide after 2 minutes (the join window duration)
+        setTimeout(function() {
+            $('#lockdown-announcement').fadeOut();
+        }, 120000);
+    }
 });
 
 // Navigation menu functions
@@ -380,7 +451,7 @@ function createGang() {
     const gangColor = $('#gangColorInput').val();
     
     if (!gangName || gangName.trim() === '') {
-        alert('Please enter a gang name');
+        showNotification('Please enter a gang name', 'error');
         return;
     }
     
@@ -390,10 +461,10 @@ function createGang() {
         emblem: 0 // Default emblem ID
     }, function(response) {
         if (response.success) {
-            alert('Gang created successfully!');
+            showNotification('Gang created successfully!', 'success');
             gang(); // Refresh gang view
         } else {
-            alert('Failed to create gang: ' + response.message);
+            showNotification('Failed to create gang: ' + response.message, 'error');
         }
     });
 }
@@ -403,11 +474,11 @@ function joinGang(gangId) {
         gangId: gangId
     }, function(response) {
         if (response.success) {
-            alert('Successfully joined gang!');
+            showNotification('Successfully joined gang!', 'success');
             currentGangId = gangId;
             gang(); // Refresh gang view
         } else {
-            alert('Failed to join gang: ' + response.message);
+            showNotification('Failed to join gang: ' + response.message, 'error');
         }
     });
 }
@@ -415,11 +486,11 @@ function joinGang(gangId) {
 function leaveGang() {
     $.post(`https://${GetParentResourceName()}/leaveGang`, {}, function(response) {
         if (response.success) {
-            alert('Successfully left the gang!');
+            showNotification('Successfully left the gang!', 'success');
             currentGangId = null;
             gang(); // Refresh gang view
         } else {
-            alert('Failed to leave gang: ' + response.message);
+            showNotification('Failed to leave gang: ' + response.message, 'error');
         }
     });
 }
@@ -430,10 +501,38 @@ function acceptContract(contractId) {
         contractId: contractId
     }, function(response) {
         if (response.success) {
-            alert('Contract accepted! Complete it during your next Lockdown mission.');
+            showNotification('Contract accepted! Complete it during your next Lockdown mission.', 'success');
             contracts(); // Refresh contracts view
         } else {
-            alert('Failed to accept contract.');
+            showNotification('Failed to accept contract.', 'error');
         }
+    });
+}
+
+// Helper function to show notifications within the UI
+function showNotification(message, type) {
+    type = type || 'info';
+    
+    const notification = $('<div>').addClass('notification').addClass(type);
+    const notificationMessage = $('<div>').addClass('notification-message').text(message);
+    const closeButton = $('<div>').addClass('notification-close').html('&times;');
+    
+    notification.append(notificationMessage).append(closeButton);
+    $('#notification-container').append(notification);
+    
+    // Auto remove notification after 5 seconds
+    setTimeout(function() {
+        notification.css('animation', 'fadeOut 0.5s ease-out forwards');
+        setTimeout(function() {
+            notification.remove();
+        }, 500);
+    }, 5000);
+    
+    // Close button handler
+    closeButton.on('click', function() {
+        notification.css('animation', 'fadeOut 0.5s ease-out forwards');
+        setTimeout(function() {
+            notification.remove();
+        }, 500);
     });
 }

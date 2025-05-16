@@ -1,22 +1,23 @@
 Config = {}
 
 -- General Settings
-Config.DebugMode = true        -- Set to true to see debug messages (CHANGE TO FALSE AFTER DEBUGGING)
-Config.CommandName = "lockdown" -- Command to open the Lockdown menu
-Config.KeybindEnabled = true    -- Enable F10 keybind
-Config.KeybindKey = "F10"       -- Default keybind key
+Config.DebugMode = false
+Config.CommandName = "lockdown" -- Admin command to trigger lockdown
+Config.KeybindEnabled = false    -- Disable F10 keybind (using Enter key instead)
 
 -- Instance Settings
-Config.MinPlayers = 1           -- Minimum players to start a Lockdown instance (CHANGED TO 1 FOR TESTING)
+Config.MinPlayers = 2           -- Minimum players to start a Lockdown instance
 Config.MaxPlayers = 12          -- Maximum players per Lockdown instance
 Config.RoutingBucket = 8        -- Default routing bucket for instances
-Config.LockdownDuration = 25    -- Minutes before a Lockdown zone activates
-Config.MatchStartDelay = 4      -- Seconds delay after joining
-Config.ExtractionDelay = 2      -- Minutes before extraction points activate (REDUCED FOR TESTING)
+Config.LockdownDuration = 25    -- Minutes between automatic Lockdown announcements
+Config.JoinWindowDuration = 120  -- Seconds (2 minutes) for players to join after announcement
+Config.MatchStartDelay = 10     -- Seconds delay after minimum players reached before starting
+Config.ExtractionDelay = 4      -- Minutes before first extraction point activates
+Config.ExtractionDuration = 45  -- Seconds that each extraction point remains active
+Config.MaxExtractions = 4       -- Maximum number of extraction opportunities
 Config.ExtractTime = 10         -- Seconds needed to extract
 
 -- Zone Settings
--- NOTE: These coordinates are for Liberty City, ensure they're valid on your map
 Config.Zones = {
     {
         name = "Aspatria Strip",
@@ -76,6 +77,18 @@ Config.ExtractionPoints = {
         requiredItems = {
             {name = "intel_usb", label = "Intel USB", reduce_time = 3} -- Optional item to reduce extraction time
         }
+    },
+    {
+        name = "Warehouse Extraction",
+        coords = vector3(950.3672, -3000.12, 5.900873),
+        type = "vehicle",
+        requiredItems = {} -- No items required
+    },
+    {
+        name = "Dock Gate Extraction",
+        coords = vector3(1000.876, -2950.23, 5.896234),
+        type = "fence",
+        requiredItems = {} -- No items required
     }
 }
 
@@ -247,6 +260,33 @@ Config.PoliceAI = {
         "police2", 
         "police3"
     }
+}
+
+-- Spawn Points Settings
+Config.SpawnPoints = {
+    -- North side of zone
+    {offset = {x = 0, y = 0.7}, randomize = 50},
+    -- East side of zone
+    {offset = {x = 0.7, y = 0}, randomize = 50},
+    -- South side of zone
+    {offset = {x = 0, y = -0.7}, randomize = 50},
+    -- West side of zone
+    {offset = {x = -0.7, y = 0}, randomize = 50},
+    -- Northeast corner
+    {offset = {x = 0.5, y = 0.5}, randomize = 50},
+    -- Southeast corner
+    {offset = {x = 0.5, y = -0.5}, randomize = 50},
+    -- Southwest corner
+    {offset = {x = -0.5, y = -0.5}, randomize = 50},
+    -- Northwest corner
+    {offset = {x = -0.5, y = 0.5}, randomize = 50},
+    -- Center
+    {offset = {x = 0, y = 0}, randomize = 100},
+    -- Random intermediate points
+    {offset = {x = 0.3, y = 0.3}, randomize = 80},
+    {offset = {x = -0.3, y = 0.3}, randomize = 80},
+    {offset = {x = 0.3, y = -0.3}, randomize = 80},
+    {offset = {x = -0.3, y = -0.3}, randomize = 80}
 }
 
 -- Inventory & Economy
